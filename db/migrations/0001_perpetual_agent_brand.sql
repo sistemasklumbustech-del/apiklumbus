@@ -1,0 +1,2 @@
+ALTER TABLE "cooperativas" ADD COLUMN "iva_porcentaje" numeric(5, 2) DEFAULT '15.00' NOT NULL;--> statement-breakpoint
+ALTER TABLE "cooperativas" ADD COLUMN "iva_visible_en_boleto" boolean DEFAULT true NOT NULL;

@@ -1,0 +1,1 @@
+ALTER TABLE "configuracion_plataforma" ADD COLUMN "cancelacion_horas_minimas_antes" integer;

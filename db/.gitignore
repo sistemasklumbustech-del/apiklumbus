@@ -1,0 +1,3 @@
+# Los backups contienen datos reales de clientes (nombres, cédulas,
+# correos, boletos comprados) — nunca deben subirse a git.
+backups/

@@ -1,0 +1,35 @@
+{
+  "name": "@columbus/db",
+  "version": "0.1.0",
+  "description": "Esquema Drizzle (Postgres + RLS multi-tenant) de TicketYa, derivado de SRS v1.2 y Arquitectura Técnica v1.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrar": "node scripts/aplicar-migraciones.cjs",
+    "db:migrar:marcar": "node scripts/aplicar-migraciones.cjs --marcar-como-aplicadas",
+    "db:respaldar": "node scripts/respaldar.cjs",
+    "db:verificar-backup": "node scripts/verificar-backup.cjs",
+    "verify:migration": "node verify_migration.cjs",
+    "verify:rls": "node verify_rls_isolation.cjs",
+    "verify:edge-cases": "node verify_edge_cases.cjs",
+    "verify:all": "npm run typecheck && npm run db:generate && npm run verify:migration && npm run verify:rls && npm run verify:edge-cases"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
+    "@types/node": "^26.1.1",
+    "@types/pg": "^8.20.0",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^7.0.2"
+  }
+}
+

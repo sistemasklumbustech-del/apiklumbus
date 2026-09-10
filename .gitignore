@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+*.log
+
+# Secretos -- nunca deben commitearse, solo los .example
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+api/uploads/

@@ -1,0 +1,13 @@
+-- OBSOLETO (12-ago-2026) -- este archivo intentaba ALTER ROLE ...
+-- BYPASSRLS, que nunca puede funcionar en un Postgres administrado
+-- (Render): solo un rol que YA tiene BYPASSRLS puede otorgarlo, y el
+-- usuario de conexion de la app nunca lo va a tener ahi. Reemplazado
+-- por completo por la migracion 0028_admin_plataforma_bypass_rls.sql,
+-- que logra el mismo resultado (el admin de plataforma ve todo) sin
+-- depender de ningun superusuario -- agrega la excepcion directo
+-- dentro de cada politica en vez de un atributo de rol.
+--
+-- Se deja este archivo como no-operacion (en vez de borrarlo) para
+-- que el historial de migraciones no cambie de numeracion, y para que
+-- quede documentado por que ya no hace nada.
+SELECT 1;

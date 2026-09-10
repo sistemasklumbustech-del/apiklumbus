@@ -1,0 +1,19 @@
+{
+  "name": "columbus-api-workspace",
+  "private": true,
+  "packageManager": "npm@10.0.0",
+  "workspaces": [
+    "api",
+    "db"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=db && npm run build --workspace=api",
+    "dev": "npm run start:dev --workspace=api",
+    "start": "npm run start:prod --workspace=api",
+    "lint": "npm run lint --workspace=api",
+    "typecheck": "npm run typecheck --workspace=api && npm run typecheck --workspace=db",
+    "test": "npm run test --workspace=api",
+    "db:generate": "npm run db:generate --workspace=db",
+    "db:migrar": "npm run db:migrar --workspace=db"
+  }
+}
