@@ -300,3 +300,48 @@ export const estadoSolicitudFacturaEnum = pgEnum('estado_solicitud_factura', [
  * validacion mas ligera, sin checksum -- el formato varia por pais.
  */
 export const tipoDocumentoEnum = pgEnum('tipo_documento', ['cedula', 'pasaporte']);
+
+/**
+ * RF-016 (Requerimiento Funcional TTM) — SIAT3000 puede validar con una
+ * sola identidad técnica para toda la plataforma, o con un nick distinto
+ * por cada RUC de cooperativa, según lo que confirme Derpacif (una de las
+ * 11 preguntas pendientes de la carta de Fase 0, ver CONTEXT.md sección
+ * 5.4). El modo se guarda como configuración explícita, nunca como una
+ * decisión fija en código — así lo exige el criterio de aceptación de
+ * RF-016.
+ */
+export const modoIntegracionTerminalEnum = pgEnum('modo_integracion_terminal', [
+  'unico',
+  'por_cooperativa',
+]);
+
+/**
+ * Entidades del manual SIAT3000 (diccionario de datos Derpacif) cuyo
+ * identificador no coincide con el id local: getBus/getRuta/
+ * getDestinoRuta/getFrecuenciaRuta devuelven IDs propios del Terminal que
+ * hay que traducir contra bus/ruta/tarifa/frecuencia locales. 'viaje' se
+ * agrega para cachear el código que retorna setCrearViaje por cada fila
+ * de `viajes`, evitando volver a crear el viaje en SIAT3000 en cada venta
+ * de la misma frecuencia — pendiente de confirmar con Derpacif si ese
+ * código es reutilizable (CONTEXT.md sección 7.1, penúltima observación).
+ */
+export const tipoEntidadTerminalEnum = pgEnum('tipo_entidad_terminal', [
+  'bus',
+  'ruta',
+  'destino_ruta',
+  'frecuencia',
+  'viaje',
+]);
+
+/**
+ * RF-010 / RN-005 — estado de cada intento de registrar la venta y
+ * obtener la tasa (setVentaPasaje) ante SIAT3000. 'fallida' no se
+ * reintenta a ciegas (RN-007 del RF de TTM): la aplicación debe
+ * reconciliar contra el saldo/estado real antes de reintentar, para no
+ * duplicar el cobro de una tasa.
+ */
+export const estadoRegistroTasaEnum = pgEnum('estado_registro_tasa', [
+  'pendiente',
+  'exitosa',
+  'fallida',
+]);
