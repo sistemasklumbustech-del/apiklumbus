@@ -113,6 +113,11 @@ export class AdminController {
     return this.admin.dashboardNacional();
   }
 
+  @Get('reportes/conciliacion')
+  async conciliacion() {
+    return this.admin.conciliacion();
+  }
+
   @Get('iva-nacional')
   async obtenerIvaNacional() {
     return { ivaPorcentaje: await this.admin.obtenerIvaNacional() };

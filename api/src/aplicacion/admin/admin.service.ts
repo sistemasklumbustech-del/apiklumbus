@@ -8,6 +8,7 @@ import type {
   ModoIvaBoleto,
   DatosNuevoAdministrador,
 } from '../../dominio/admin/admin.ports';
+import { calcularDiscrepancias } from '../../dominio/admin/conciliacion.util';
 
 export const ADMIN_REPOSITORIO = 'ADMIN_REPOSITORIO';
 
@@ -188,5 +189,13 @@ export class AdminService {
 
   async eliminarCooperativa(id: string, eliminadoPorUsuarioId: string) {
     return this.admin.eliminarCooperativa(id, eliminadoPorUsuarioId);
+  }
+
+  async conciliacion() {
+    const filas = await this.admin.conciliacion();
+    return filas.map((fila) => ({
+      ...fila,
+      discrepancias: calcularDiscrepancias(fila),
+    }));
   }
 }

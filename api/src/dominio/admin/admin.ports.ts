@@ -80,6 +80,33 @@ export interface FilaConteoUsuariosPorRol {
   cantidad: number;
 }
 
+/**
+ * RF-017 -- una fila por boleto, con el estado crudo de cada pieza que
+ * debería estar consistente entre sí (pago, tasa de terminal,
+ * comprobante tributario). Sin `discrepancias` todavía -- eso lo calcula
+ * `calcularDiscrepancias` (conciliacion.util.ts), una función de dominio
+ * pura, no este repositorio: la regla de qué combinación de estados
+ * cuenta como problema es una decisión de negocio, no un detalle de
+ * cómo se consultó la base de datos (Arquitectura Técnica 2.1).
+ */
+export interface FilaConciliacionCruda {
+  boletoId: string;
+  codigoQr: string;
+  estadoBoleto: string;
+  compraId: string;
+  cooperativaNombre: string;
+  creadoEn: string;
+  estadoPago: string | null;
+  montoPago: number | null;
+  estadoRegistroTasa: string | null;
+  codigoTasa: string | null;
+  estadosComprobanteElectronico: string[] | null;
+}
+
+export interface FilaConciliacion extends FilaConciliacionCruda {
+  discrepancias: string[];
+}
+
 export interface AdminRepositorio {
   crearCooperativaConPrimerUsuarioAtomico(
     datosCooperativa: DatosNuevaCooperativa,
@@ -156,7 +183,10 @@ export interface AdminRepositorio {
    * cada operador). Mismo patrón exacto que obtenerCargoPlataforma /
    * actualizarCargoPlataforma.
    */
-  obtenerContactoSoporte(): Promise<{ correo: string | null; telefono: string | null }>;
+  obtenerContactoSoporte(): Promise<{
+    correo: string | null;
+    telefono: string | null;
+  }>;
   actualizarContactoSoporte(
     datos: { correo: string | null; telefono: string | null },
     usuarioId: string,
@@ -173,7 +203,10 @@ export interface AdminRepositorio {
 
   obtenerCargoPlataforma(): Promise<number>;
   /** 04-ago-2026 -- usuarioId nuevo, para la auditoría (accion='cambio_comision', exclusivo de super_admin). */
-  actualizarCargoPlataforma(nuevoMonto: number, usuarioId: string): Promise<void>;
+  actualizarCargoPlataforma(
+    nuevoMonto: number,
+    usuarioId: string,
+  ): Promise<void>;
 
   listarBannersPropios(): Promise<
     {
@@ -200,7 +233,10 @@ export interface AdminRepositorio {
   /** 27-jul-2026 -- editable desde el Panel Admin, sin tocar codigo. */
   obtenerModoIvaBoleto(): Promise<ModoIvaBoleto>;
   /** 04-ago-2026 -- usuarioId nuevo, para la auditoría (accion='cambio_modo_iva_boleto', exclusivo de super_admin). */
-  actualizarModoIvaBoleto(modo: ModoIvaBoleto, usuarioId: string): Promise<void>;
+  actualizarModoIvaBoleto(
+    modo: ModoIvaBoleto,
+    usuarioId: string,
+  ): Promise<void>;
 
   /** 02-ago-2026 -- RF-ADMIN sección 3.13, contador de usuarios por rol. */
   contarUsuariosPorRol(): Promise<FilaConteoUsuariosPorRol[]>;
@@ -215,7 +251,10 @@ export interface AdminRepositorio {
   ): Promise<{ id: string }>;
   /** Compartido -- ver un admin de menor rango no es tan sensible como crearlo o eliminarlo. */
   listarAdministradores(): Promise<AdministradorResumen[]>;
-  eliminarAdministrador(id: string, eliminadoPorUsuarioId: string): Promise<void>;
+  eliminarAdministrador(
+    id: string,
+    eliminadoPorUsuarioId: string,
+  ): Promise<void>;
 
   /**
    * Baja lógica (`estado = 'dada_de_baja'`), NO eliminación física --
@@ -224,4 +263,7 @@ export interface AdminRepositorio {
    * no se deben destruir. Exclusivo de super_admin.
    */
   eliminarCooperativa(id: string, eliminadoPorUsuarioId: string): Promise<void>;
+
+  /** RF-017 -- una fila cruda por boleto, ver FilaConciliacionCruda. */
+  conciliacion(): Promise<FilaConciliacionCruda[]>;
 }

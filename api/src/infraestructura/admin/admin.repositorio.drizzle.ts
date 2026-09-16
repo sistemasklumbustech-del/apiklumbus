@@ -1,4 +1,8 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Inject } from '@nestjs/common';
 import { sql, eq, inArray } from 'drizzle-orm';
 import {
@@ -20,6 +24,7 @@ import type {
   ModoIvaBoleto,
   DatosNuevoAdministrador,
   AdministradorResumen,
+  FilaConciliacionCruda,
 } from '../../dominio/admin/admin.ports';
 
 /**
@@ -245,7 +250,10 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
         creadoEn: puntosOperacion.creadoEn,
       })
       .from(puntosOperacion)
-      .leftJoin(cooperativas, eq(puntosOperacion.cooperativaPropietariaId, cooperativas.id))
+      .leftJoin(
+        cooperativas,
+        eq(puntosOperacion.cooperativaPropietariaId, cooperativas.id),
+      )
       .where(eq(puntosOperacion.estado, 'pendiente_revision'))
       .orderBy(puntosOperacion.creadoEn);
     return filas;
@@ -270,7 +278,11 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
     }
     await this.db
       .update(puntosOperacion)
-      .set({ estado: 'aprobado', aprobadoPorUsuarioId: usuarioId, aprobadoEn: new Date() })
+      .set({
+        estado: 'aprobado',
+        aprobadoPorUsuarioId: usuarioId,
+        aprobadoEn: new Date(),
+      })
       .where(eq(puntosOperacion.id, id));
     return { ok: true };
   }
@@ -391,7 +403,10 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
       : 0;
   }
 
-  async actualizarCargoPlataforma(nuevoMonto: number, usuarioId: string): Promise<void> {
+  async actualizarCargoPlataforma(
+    nuevoMonto: number,
+    usuarioId: string,
+  ): Promise<void> {
     const filaExistente = await this.db.execute(
       sql`SELECT id FROM configuracion_plataforma LIMIT 1`,
     );
@@ -425,7 +440,10 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
    * Contacto de soporte global (13-ago-2026) -- mismo patrón exacto que
    * obtenerCargoPlataforma / actualizarCargoPlataforma.
    */
-  async obtenerContactoSoporte(): Promise<{ correo: string | null; telefono: string | null }> {
+  async obtenerContactoSoporte(): Promise<{
+    correo: string | null;
+    telefono: string | null;
+  }> {
     const resultado = await this.db.execute(
       sql`SELECT soporte_correo, soporte_telefono FROM configuracion_plataforma LIMIT 1`,
     );
@@ -534,7 +552,10 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
     return (fila?.modo_iva_boleto as ModoIvaBoleto) ?? 'calculado';
   }
 
-  async actualizarModoIvaBoleto(modo: ModoIvaBoleto, usuarioId: string): Promise<void> {
+  async actualizarModoIvaBoleto(
+    modo: ModoIvaBoleto,
+    usuarioId: string,
+  ): Promise<void> {
     const filaExistente = await this.db.execute(
       sql`SELECT id FROM configuracion_plataforma LIMIT 1`,
     );
@@ -685,5 +706,48 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
       INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle)
       VALUES ('baja_cooperativa', ${eliminadoPorUsuarioId}, 'cooperativa', ${id}, '{}')
     `);
+  }
+
+  /**
+   * RF-017 -- una fila por boleto. `pago` se resuelve con LATERAL en vez
+   * de un LEFT JOIN plano porque una compra puede tener más de un intento
+   * de pago (reintentos); se prioriza el aprobado si existe, si no el más
+   * reciente. `comprobantes` se agrega con array_agg porque RL-006 permite
+   * hasta 3 comprobantes por compra (uno por sujeto tributario) -- este
+   * reporte no distingue cuál es cuál, solo si TODOS quedaron autorizados.
+   */
+  async conciliacion(): Promise<FilaConciliacionCruda[]> {
+    const resultado = await this.db.execute(sql`
+      SELECT
+        b.id AS "boletoId",
+        b.codigo_qr AS "codigoQr",
+        b.estado AS "estadoBoleto",
+        c.id AS "compraId",
+        coop.nombre_comercial AS "cooperativaNombre",
+        b.creado_en AS "creadoEn",
+        pago.estado AS "estadoPago",
+        pago.monto::float AS "montoPago",
+        rt.estado AS "estadoRegistroTasa",
+        rt.codigo_tasa AS "codigoTasa",
+        ce.estados AS "estadosComprobanteElectronico"
+      FROM boletos b
+      INNER JOIN compras c ON c.id = b.compra_id
+      INNER JOIN cooperativas coop ON coop.id = b.cooperativa_id
+      LEFT JOIN LATERAL (
+        SELECT p.estado, p.monto
+        FROM pagos p
+        WHERE p.compra_id = c.id
+        ORDER BY (p.estado = 'aprobado') DESC, p.creado_en DESC
+        LIMIT 1
+      ) pago ON true
+      LEFT JOIN registros_tasa_terminal rt ON rt.compra_id = c.id
+      LEFT JOIN LATERAL (
+        SELECT array_agg(ce_int.estado) AS estados
+        FROM comprobantes_electronicos ce_int
+        WHERE ce_int.compra_id = c.id
+      ) ce ON true
+      ORDER BY b.creado_en DESC
+    `);
+    return resultado.rows as unknown as FilaConciliacionCruda[];
   }
 }
