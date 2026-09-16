@@ -16,7 +16,7 @@ import { UsuarioRepositorioDrizzle } from '../../infraestructura/auth/usuario.re
 import { BcryptHasher } from '../../infraestructura/auth/bcrypt.hasher';
 import { JwtEmisorTokens } from '../../infraestructura/auth/jwt.emisor-tokens';
 import { CifradorTotpAesGcm } from '../../infraestructura/auth/cifrador-totp.aes-gcm';
-import { SimuladorNotificador } from '../../infraestructura/notificaciones/simulador.notificador';
+import { ResendNotificador } from '../../infraestructura/notificaciones/resend.notificador';
 import { SimuladorAlmacenamiento } from '../../infraestructura/almacenamiento/simulador.almacenamiento';
 import { JwtStrategy } from './guards/jwt.strategy';
 import { RolesGuard } from './guards/roles.guard';
@@ -55,7 +55,7 @@ import { ReferidosModule } from '../referidos/referidos.module';
     { provide: USUARIO_REPOSITORIO, useClass: UsuarioRepositorioDrizzle },
     { provide: HASHER_CONTRASENA, useClass: BcryptHasher },
     { provide: EMISOR_TOKENS, useClass: JwtEmisorTokens },
-    { provide: NOTIFICADOR_EMAIL, useClass: SimuladorNotificador },
+    { provide: NOTIFICADOR_EMAIL, useClass: ResendNotificador },
     { provide: ALMACENAMIENTO_ARCHIVOS, useClass: SimuladorAlmacenamiento },
     { provide: CIFRADOR_TOTP, useClass: CifradorTotpAesGcm },
   ],
