@@ -715,6 +715,14 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
    * reciente. `comprobantes` se agrega con array_agg porque RL-006 permite
    * hasta 3 comprobantes por compra (uno por sujeto tributario) -- este
    * reporte no distingue cuál es cuál, solo si TODOS quedaron autorizados.
+   *
+   * ⚠ Hallazgo real (16-sep-2026): `estado` es un enum de Postgres, no un
+   * tipo básico -- `array_agg` sobre un enum devuelve un array de un tipo
+   * compuesto que `pg` no sabe parsear como array de JS (llega como el
+   * string literal `"{autorizado}"`, no como `['autorizado']`), rompiendo
+   * `calcularDiscrepancias` con "estados.some is not a function" en
+   * producción. El `::text` explícito antes de agregar fuerza el array
+   * resultante al tipo estándar `text[]`, que `pg` sí reconoce y parsea.
    */
   async conciliacion(): Promise<FilaConciliacionCruda[]> {
     const resultado = await this.db.execute(sql`
@@ -742,7 +750,7 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
       ) pago ON true
       LEFT JOIN registros_tasa_terminal rt ON rt.compra_id = c.id
       LEFT JOIN LATERAL (
-        SELECT array_agg(ce_int.estado) AS estados
+        SELECT array_agg(ce_int.estado::text) AS estados
         FROM comprobantes_electronicos ce_int
         WHERE ce_int.compra_id = c.id
       ) ce ON true
