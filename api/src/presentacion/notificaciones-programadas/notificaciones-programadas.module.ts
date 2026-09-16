@@ -5,7 +5,7 @@ import {
   NOTIFICADOR_WHATSAPP,
 } from '../../aplicacion/notificaciones-programadas/notificaciones-programadas.service';
 import { NotificacionesProgramadasRepositorioDrizzle } from '../../infraestructura/notificaciones-programadas/notificaciones-programadas.repositorio.drizzle';
-import { SimuladorNotificadorWhatsApp } from '../../infraestructura/notificaciones/simulador.notificador.whatsapp';
+import { TwilioNotificadorWhatsApp } from '../../infraestructura/notificaciones/twilio.notificador.whatsapp';
 
 @Module({
   providers: [
@@ -14,7 +14,7 @@ import { SimuladorNotificadorWhatsApp } from '../../infraestructura/notificacion
       provide: NOTIFICACIONES_PROGRAMADAS_REPOSITORIO,
       useClass: NotificacionesProgramadasRepositorioDrizzle,
     },
-    { provide: NOTIFICADOR_WHATSAPP, useClass: SimuladorNotificadorWhatsApp },
+    { provide: NOTIFICADOR_WHATSAPP, useClass: TwilioNotificadorWhatsApp },
   ],
   exports: [NotificacionesProgramadasService],
 })
