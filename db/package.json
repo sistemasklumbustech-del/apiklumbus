@@ -15,7 +15,8 @@
     "verify:migration": "node verify_migration.cjs",
     "verify:rls": "node verify_rls_isolation.cjs",
     "verify:edge-cases": "node verify_edge_cases.cjs",
-    "verify:all": "npm run typecheck && npm run db:generate && npm run verify:migration && npm run verify:rls && npm run verify:edge-cases"
+    "verify:all": "npm run typecheck && npm run db:generate && npm run verify:migration && npm run verify:rls && npm run verify:edge-cases",
+    "seed:rf017": "tsx seeds/rf017-conciliacion.seed.ts"
   },
   "keywords": [],
   "author": "",
@@ -29,6 +30,7 @@
     "@types/node": "^26.1.1",
     "@types/pg": "^8.20.0",
     "drizzle-kit": "^0.31.10",
+    "tsx": "^4.19.2",
     "typescript": "^7.0.2"
   }
 }
