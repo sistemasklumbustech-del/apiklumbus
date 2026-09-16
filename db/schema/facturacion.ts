@@ -15,6 +15,7 @@ import { relations } from 'drizzle-orm';
 import { boletos, compras } from './ventas';
 import { puntosOperacion, cooperativas } from './tenancy';
 import { sujetoTributarioEnum, estadoComprobanteEnum } from './enums';
+import { registrosTasaTerminal } from './integraciones-terminal';
 
 /**
  * RF-TICKET-002 — comprobante de tasa de terminal, uno por pasajero
@@ -33,6 +34,22 @@ export const comprobantesTasaTerminal = pgTable(
       .references(() => puntosOperacion.id)
       .notNull(),
 
+    // 15-sep-2026 -- vínculo real con el registro de la llamada SIAT3000
+    // (registros_tasa_terminal). Derpacif confirmó que setVentaPasaje
+    // devuelve UN solo código de tasa por venta completa (el `detalle`
+    // ya es un arreglo con todos los pasajeros), no uno por boleto --
+    // pero RF-TICKET-002 exige que cada pasajero reciba su propio
+    // comprobante con código de verificación. Se resuelve así: cada
+    // boleto de la compra sigue teniendo su propia fila/documento acá
+    // (código de verificación denormalizado en `codigoVerificacion` para
+    // no romper las consultas existentes), pero todos los boletos de una
+    // misma compra apuntan a la MISMA fila de `registros_tasa_terminal`
+    // -- este FK es lo que hace esa relación real y auditable en vez de
+    // depender de que las cadenas de texto coincidan.
+    registroTasaTerminalId: uuid('registro_tasa_terminal_id')
+      .references(() => registrosTasaTerminal.id)
+      .notNull(),
+
     monto: numeric('monto', { precision: 8, scale: 2 }).notNull(),
     codigoVerificacion: varchar('codigo_verificacion', { length: 50 }).notNull(),
 
@@ -42,6 +59,7 @@ export const comprobantesTasaTerminal = pgTable(
     uniqueIndex('uq_comprobantes_tasa_terminal_boleto').on(t.boletoId),
     uniqueIndex('uq_comprobantes_tasa_terminal_codigo').on(t.codigoVerificacion),
     index('idx_comprobantes_tasa_terminal_punto').on(t.puntoOperacionId),
+    index('idx_comprobantes_tasa_terminal_registro').on(t.registroTasaTerminalId),
   ],
 );
 
@@ -121,6 +139,10 @@ export const comprobantesTasaTerminalRelations = relations(comprobantesTasaTermi
   puntoOperacion: one(puntosOperacion, {
     fields: [comprobantesTasaTerminal.puntoOperacionId],
     references: [puntosOperacion.id],
+  }),
+  registroTasaTerminal: one(registrosTasaTerminal, {
+    fields: [comprobantesTasaTerminal.registroTasaTerminalId],
+    references: [registrosTasaTerminal.id],
   }),
 }));
 
