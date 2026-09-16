@@ -40,7 +40,15 @@ export class NotificacionesProgramadasRepositorioDrizzle
       JOIN compras c ON c.id = b.compra_id
       LEFT JOIN usuarios u ON u.id = c.comprador_usuario_id
       WHERE v.estado = 'programado'
-        AND (v.fecha_salida + v.hora_salida_programada)
+        -- Hallazgo real (16-sep-2026): hora_salida_programada ya es un
+        -- timestamp with time zone completo (fecha + hora, ver
+        -- viajes.horaSalidaProgramada en rutas.ts) a pesar de su nombre
+        -- -- no es solo una hora del día. Sumarle fecha_salida (un
+        -- date) rompía en producción con "operator does not exist:
+        -- date + timestamp with time zone" cada vez que corría este
+        -- cron, sin que ningún usuario lo notara (recordatorios de
+        -- viaje simplemente nunca se enviaban).
+        AND v.hora_salida_programada
             BETWEEN now() AND now() + (${horasAntes} || ' hours')::interval
         AND NOT EXISTS (
           SELECT 1 FROM notificaciones n
