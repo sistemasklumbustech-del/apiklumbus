@@ -15,16 +15,29 @@ jobs:
     steps:
       - name: Deploy vía SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          # Conexión de superusuario -- NUNCA la de la app en producción
+          # (ver db/scripts/aplicar-migraciones.cjs). `envs` abajo la
+          # exporta en el shell remoto antes de correr `script`.
+          DATABASE_URL_MIGRACIONES: ${{ secrets.DATABASE_URL_MIGRACIONES }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: DATABASE_URL_MIGRACIONES
           script: |
             set -e
             cd ~/apiklumbus
             git fetch origin main
             git reset --hard origin/main
             npm install
+            # Migraciones ANTES de compilar/reiniciar -- si fallan, `set -e`
+            # corta acá: el build ni el restart llegan a correr, el
+            # servicio sigue en pie con el código y el esquema viejos
+            # (aplicar-migraciones.cjs además es transaccional por
+            # archivo y lleva registro de lo ya aplicado, así que
+            # reintentar el deploy después de arreglar algo es seguro).
+            npm run db:migrar
             cd db && npm run build
             cd ../api && npm run build
             sudo systemctl restart columbus-api.service
