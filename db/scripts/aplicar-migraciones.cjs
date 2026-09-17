@@ -55,6 +55,7 @@ const ORDEN_MANUAL = [
   '003_auditoria_inmutable.sql',
   '005_grants_banners_y_default_privileges.sql',
   '006_compras_transiciones_inmutable.sql',
+  '007_terminos_aceptaciones_inmutable.sql',
 ];
 
 function dividirEnSentencias(sql) {

@@ -28,3 +28,4 @@ export * from './comercial';
 export * from './wallet';
 export * from './referidos';
 export * from './integraciones-terminal';
+export * from './terminos';
