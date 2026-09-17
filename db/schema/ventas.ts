@@ -43,7 +43,14 @@ import { relations } from 'drizzle-orm';
 import { usuarios } from './usuarios';
 import { cooperativas } from './tenancy';
 import { viajeAsientos } from './asientos';
-import { tipoTarifaEnum, estadoPagoEnum, canalVentaEnum, estadoBoletoEnum, tipoDocumentoEnum } from './enums';
+import {
+  tipoTarifaEnum,
+  estadoPagoEnum,
+  canalVentaEnum,
+  estadoBoletoEnum,
+  tipoDocumentoEnum,
+  estadoCompraEnum,
+} from './enums';
 import { appRole, platformAdminRole, filtroCooperativaActual } from './rls';
 
 export const compras = pgTable(
@@ -59,6 +66,13 @@ export const compras = pgTable(
     // RF-CHECK-006 — "incluyendo el vendedor que la realizó", solo
     // aplica/existe cuando canal = 'ventanilla'.
     vendedorUsuarioId: uuid('vendedor_usuario_id').references(() => usuarios.id),
+
+    // RF-006 -- estado explícito de la orden (ver comentario completo en
+    // enums.ts). Cada cambio de valor debe acompañarse de una fila en
+    // compras_transiciones -- ese es el registro auditable exigido por
+    // el criterio de aceptación ("fecha, actor y referencia externa"),
+    // esta columna es solo el estado actual para consultar rápido.
+    estado: estadoCompraEnum('estado').default('iniciada').notNull(),
 
     // RF-CHECK-003 — desglose completo mostrado antes de pagar. Se
     // persiste el desglose (no solo el total) porque es lo que RN-002
@@ -85,6 +99,44 @@ export const compras = pgTable(
   (t) => [
     index('idx_compras_comprador').on(t.compradorUsuarioId),
     index('idx_compras_vendedor').on(t.vendedorUsuarioId),
+    index('idx_compras_estado').on(t.estado),
+  ],
+);
+
+/**
+ * RF-006 -- historial inmutable de transiciones de estado de una compra.
+ * Mismo patrón que auditoria_admin (solo INSERT, sin actualizadoEn):
+ * `actorUsuarioId` cuando un humano causó la transición (ej. una
+ * cooperativa confirmando un pago manual), `actorSistema` cuando fue un
+ * proceso automático (ej. 'pasarela_pago', el simulador de pasarela) --
+ * exactamente uno de los dos debe estar lleno, nunca los dos ni ninguno
+ * (se valida en la capa de aplicación, no con un CHECK de SQL, mismo
+ * criterio que la regla de cooperativaId en usuarios.ts).
+ */
+export const comprasTransiciones = pgTable(
+  'compras_transiciones',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    compraId: uuid('compra_id')
+      .references(() => compras.id)
+      .notNull(),
+
+    estadoAnterior: estadoCompraEnum('estado_anterior'),
+    estadoNuevo: estadoCompraEnum('estado_nuevo').notNull(),
+
+    actorUsuarioId: uuid('actor_usuario_id').references(() => usuarios.id),
+    actorSistema: varchar('actor_sistema', { length: 50 }),
+
+    // Ej. referenciaExterna del pago, o el motivo de un rechazo -- texto
+    // libre corto, no una FK, porque el "referente" varía según la
+    // transición (a veces es un pago, a veces un motivo de cancelación).
+    referenciaExterna: varchar('referencia_externa', { length: 200 }),
+
+    creadoEn: timestamp('creado_en', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index('idx_compras_transiciones_compra').on(t.compraId),
+    index('idx_compras_transiciones_estado_nuevo').on(t.estadoNuevo),
   ],
 );
 
@@ -300,6 +352,15 @@ export const comprasRelations = relations(compras, ({ one, many }) => ({
   pasajeros: many(pasajerosCompra),
   boletos: many(boletos),
   pagos: many(pagos),
+  transiciones: many(comprasTransiciones),
+}));
+
+export const comprasTransicionesRelations = relations(comprasTransiciones, ({ one }) => ({
+  compra: one(compras, { fields: [comprasTransiciones.compraId], references: [compras.id] }),
+  actorUsuario: one(usuarios, {
+    fields: [comprasTransiciones.actorUsuarioId],
+    references: [usuarios.id],
+  }),
 }));
 
 export const pasajerosCompraRelations = relations(pasajerosCompra, ({ one, many }) => ({

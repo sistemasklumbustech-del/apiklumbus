@@ -345,3 +345,36 @@ export const estadoRegistroTasaEnum = pgEnum('estado_registro_tasa', [
   'exitosa',
   'fallida',
 ]);
+
+/**
+ * RF-006 (Requerimiento Funcional TTM) -- estado explícito de una orden,
+ * independiente de combinar pagos.estado + boletos.estado a ojo (que es
+ * como funcionaba hasta el 17-sep-2026). Mapeo real sobre el código
+ * existente (no una secuencia ideal):
+ * - 'iniciada' -> 'pendiente_pago': ambas se marcan en la misma llamada
+ *   a crearCompraPendiente, una justo después de la otra.
+ * - 'pagada' -> 'boleto_confirmado': ambas se marcan en la misma llamada
+ *   a confirmarPago/confirmarPagoManual (hoy no hay ventana real entre
+ *   "se aprobó el pago" y "se crearon los boletos").
+ * - 'tasa_confirmada': hoy es inmediata (SIAT3000 todavía no está
+ *   conectado a ningún flujo real, ver integraciones-terminal) --
+ *   cuando lo esté, pasará a depender de la respuesta real del adaptador.
+ * - 'reembolsada': se usa para cancelarBoleto/reprogramarBoleto -- ⚠️
+ *   hoy esa acción NUNCA devuelve dinero de verdad, solo libera el
+ *   asiento. Es el nombre correcto desde la perspectiva del pasajero,
+ *   no una confirmación de que existe lógica de reembolso real detrás.
+ * - 'reversada': reservado para un reverso de pago iniciado por un
+ *   admin -- no existe ese flujo todavía, mismo criterio que
+ *   pagos.estado='revertido' (declarado, nunca asignado en el código).
+ */
+export const estadoCompraEnum = pgEnum('estado_compra', [
+  'iniciada',
+  'pendiente_pago',
+  'pagada',
+  'boleto_confirmado',
+  'tasa_confirmada',
+  'completada',
+  'fallida',
+  'reembolsada',
+  'reversada',
+]);

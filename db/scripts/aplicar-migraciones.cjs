@@ -54,6 +54,7 @@ const ORDEN_MANUAL = [
   '002_grants_app_role.sql',
   '003_auditoria_inmutable.sql',
   '005_grants_banners_y_default_privileges.sql',
+  '006_compras_transiciones_inmutable.sql',
 ];
 
 function dividirEnSentencias(sql) {
