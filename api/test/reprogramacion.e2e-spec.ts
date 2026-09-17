@@ -74,6 +74,7 @@ describe('Reprogramación con crédito (e2e)', () => {
 
     const correoDirector = `director.reprog.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo: correoDirector,
       password: 'ClaveSegura123',
       nombres: 'Director', apellidos: 'Reprogramación Prueba',
@@ -214,6 +215,7 @@ describe('Reprogramación con crédito (e2e)', () => {
     const pasajero = await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: `pasajero.reprog.${sufijo}@ticketya.ec`,
         password: 'ClaveSegura123',
         nombres: 'Pasajero', apellidos: 'Reprog Prueba',

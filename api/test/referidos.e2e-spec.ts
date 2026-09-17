@@ -36,6 +36,7 @@ describe('Programa de referidos (e2e)', () => {
 
     const correoDirector = `director.referidos.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo: correoDirector,
       password: 'ClaveSegura123',
       nombres: 'Director', apellidos: 'Referidos Prueba',
@@ -134,6 +135,7 @@ describe('Programa de referidos (e2e)', () => {
     const referidor = await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: `referidor.${sufijo}@ticketya.ec`,
         password: 'ClaveSegura123',
         nombres: 'Referidor', apellidos: 'Uno Prueba',
@@ -160,6 +162,7 @@ describe('Programa de referidos (e2e)', () => {
     await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: `referido.uno.${sufijo}@ticketya.ec`,
         password: 'ClaveSegura123',
         nombres: 'Referido', apellidos: 'Uno Prueba',
@@ -187,6 +190,7 @@ describe('Programa de referidos (e2e)', () => {
     await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: `autorreferido.${sufijo}@ticketya.ec`,
         password: 'ClaveSegura123',
         nombres: 'Auto', apellidos: 'Referido Prueba',
@@ -316,6 +320,7 @@ describe('Programa de referidos (e2e)', () => {
   it('solo super_admin puede cambiar la configuración de referidos -- admin_plataforma recibe 403', async () => {
     const correoAdminPlataforma = `admin.plataforma.referidos.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo: correoAdminPlataforma,
       password: 'ClaveSegura123',
       nombres: 'Admin', apellidos: 'Plataforma Referidos Prueba',

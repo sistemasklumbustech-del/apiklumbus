@@ -63,6 +63,7 @@ describe('2FA obligatorio para cuentas administrativas (e2e)', () => {
   it('un pasajero normal NO pasa por 2FA -- login le da accessToken directo, incluso con NODE_ENV real', async () => {
     const correo = `pasajero.2fa.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo,
       password: 'ClaveSegura123',
       nombres: 'Pasajero',
@@ -82,6 +83,7 @@ describe('2FA obligatorio para cuentas administrativas (e2e)', () => {
   it('flujo completo real: admin sin 2FA configurado -> login exige configurarlo -> QR real -> código real -> activado con 10 códigos de recuperación', async () => {
     const correo = `admin.2fa.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo,
       password: 'ClaveSegura123',
       nombres: 'Admin',
@@ -134,6 +136,7 @@ describe('2FA obligatorio para cuentas administrativas (e2e)', () => {
   it('flujo completo real: admin CON 2FA ya activo -> login exige el código -> código incorrecto rechaza -> código correcto entrega credenciales', async () => {
     const correo = `admin.2fa.activo.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo,
       password: 'ClaveSegura123',
       nombres: 'Admin',
@@ -185,6 +188,7 @@ describe('2FA obligatorio para cuentas administrativas (e2e)', () => {
   it('código de recuperación: entrega credenciales una vez, y queda inválido en el segundo intento', async () => {
     const correo = `admin.2fa.recup.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo,
       password: 'ClaveSegura123',
       nombres: 'Admin',

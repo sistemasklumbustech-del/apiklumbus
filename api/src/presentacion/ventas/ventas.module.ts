@@ -13,9 +13,10 @@ import { AuthModule } from '../auth/auth.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { ReferidosModule } from '../referidos/referidos.module';
+import { TerminosModule } from '../terminos/terminos.module';
 
 @Module({
-  imports: [AuthModule, WebhooksModule, WalletModule, ReferidosModule],
+  imports: [AuthModule, WebhooksModule, WalletModule, ReferidosModule, TerminosModule],
   controllers: [VentasController],
   providers: [
     CheckoutService,

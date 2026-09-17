@@ -28,6 +28,7 @@ describe('Cooperativas proponen puntos de operación (e2e)', () => {
 
     const correoDirector = `director.puntos.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo: correoDirector,
       password: 'ClaveSegura123',
       nombres: 'Director', apellidos: 'Puntos E2E',

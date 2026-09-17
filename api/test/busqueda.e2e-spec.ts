@@ -35,6 +35,7 @@ describe('Búsqueda de rutas (e2e)', () => {
     await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: correoDirector,
         password: 'ClaveSegura123',
         nombres: 'Director', apellidos: 'Búsqueda E2E',

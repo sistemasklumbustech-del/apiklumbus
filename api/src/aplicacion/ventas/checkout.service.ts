@@ -12,6 +12,7 @@ import type { ProveedorFacturacionElectronica } from '../../dominio/facturacion/
 import { DespachadorWebhooksService } from '../webhooks/despachador-webhooks.service';
 import { WalletService } from '../wallet/wallet.service';
 import { ReferidosService } from '../referidos/referidos.service';
+import { TerminosService } from '../terminos/terminos.service';
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
 
@@ -54,6 +55,7 @@ export class CheckoutService {
     private readonly webhooks: DespachadorWebhooksService,
     private readonly wallet: WalletService,
     private readonly referidos: ReferidosService,
+    private readonly terminos: TerminosService,
   ) {}
 
   /**
@@ -76,11 +78,20 @@ export class CheckoutService {
     correoContacto?: string,
     sesionInvitadoId?: string,
     usarSaldoWallet?: boolean,
+    aceptoTerminos?: boolean,
+    direccionIp?: string,
   ) {
     if (!usuarioId && !telefonoContacto && !correoContacto) {
       throw new BadRequestException(
         'Falta un telefono o correo de contacto -- sin cuenta ni contacto no hay forma de entregar el boleto.',
       );
+    }
+
+    // RF-024 -- solo se exige a quien compra como invitado; quien ya
+    // tiene cuenta aceptó al registrarse (fail fast, antes de bloquear
+    // asientos o cobrar nada).
+    if (!usuarioId) {
+      this.terminos.validarAceptada(!!aceptoTerminos);
     }
 
     // Wallet/cashback Fase 2 (13-ago-2026) -- investigado en los
@@ -264,6 +275,10 @@ export class CheckoutService {
       telefonoContacto,
       correoContacto,
     );
+
+    if (!usuarioId) {
+      await this.terminos.registrarAceptacion({ compraId, direccionIp });
+    }
 
     const resultadoPago = await this.pasarela.procesar(
       montoAPagar,

@@ -35,6 +35,7 @@ describe('Selección de asientos (e2e)', () => {
     // --- Fixture: una cooperativa con un viaje real de 4 asientos ---
     const correoDirector = `director.asientos.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo: correoDirector,
       password: 'ClaveSegura123',
       nombres: 'Director', apellidos: 'Asientos E2E',
@@ -140,6 +141,7 @@ describe('Selección de asientos (e2e)', () => {
     const p1 = await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: `pasajero1.asientos.${sufijo}@ticketya.ec`,
         password: 'ClaveSegura123',
         nombres: 'Pasajero', apellidos: 'Uno',
@@ -149,6 +151,7 @@ describe('Selección de asientos (e2e)', () => {
     const p2 = await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: `pasajero2.asientos.${sufijo}@ticketya.ec`,
         password: 'ClaveSegura123',
         nombres: 'Pasajero', apellidos: 'Dos',

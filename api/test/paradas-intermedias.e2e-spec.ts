@@ -36,6 +36,7 @@ describe('Paradas intermedias de ruta (e2e)', () => {
 
     const correoDirector = `director.paradas.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo: correoDirector,
       password: 'ClaveSegura123',
       nombres: 'Director',

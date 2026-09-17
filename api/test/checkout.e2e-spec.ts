@@ -50,6 +50,7 @@ describe('Checkout y pago (e2e)', () => {
     // --- Fixture: cooperativa + viaje con precio base redondo ---
     const correoDirector = `director.checkout.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo: correoDirector,
       password: 'ClaveSegura123',
       nombres: 'Director', apellidos: 'Checkout Prueba',
@@ -171,6 +172,7 @@ describe('Checkout y pago (e2e)', () => {
     const pasajero = await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: `pasajero.checkout.${sufijo}@ticketya.ec`,
         password: 'ClaveSegura123',
         nombres: 'Pasajero', apellidos: 'Checkout Prueba',
@@ -583,6 +585,7 @@ describe('Checkout y pago (e2e)', () => {
     const otroPasajero = await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: `otro.cancelacion.${sufijo}@ticketya.ec`,
         password: 'ClaveSegura123',
         nombres: 'Otro', apellidos: 'Pasajero Cancelacion Prueba',
@@ -1232,6 +1235,7 @@ describe('Checkout y pago (e2e)', () => {
       const pasajeroVip = await request(app.getHttpServer())
         .post('/auth/registro')
         .send({
+          aceptoTerminos: true,
           correo: `pasajero.vip.${sufijo}@ticketya.ec`,
           password: 'ClaveSegura123',
           nombres: 'Pasajero', apellidos: 'VIP Prueba',

@@ -60,6 +60,7 @@ describe('Panel Admin + Panel Empresa (e2e)', () => {
     await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: correoAdmin,
         password: 'ClaveSegura123',
         nombres: 'Director', apellidos: 'de Prueba E2E',
@@ -958,6 +959,7 @@ describe('Panel Admin + Panel Empresa (e2e)', () => {
     const registroPasajero = await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: `pasajero.e2e.${sufijo}@ticketya.ec`,
         password: 'ClaveSegura123',
         nombres: 'Pasajero', apellidos: 'E2E',

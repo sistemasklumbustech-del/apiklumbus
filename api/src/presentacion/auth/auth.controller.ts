@@ -38,18 +38,20 @@ export class AuthController {
   /** 27-jul-2026 -- limite estricto: 5 intentos por minuto, mas restrictivo que el global (Fase B, seguridad). */
   @Throttle({ default: { limit: process.env.NODE_ENV === 'test' ? 10000 : 5, ttl: 60000 } })
   @Post('registro')
-  async registro(@Body() datos: RegistroDto) {
+  async registro(@Body() datos: RegistroDto, @Request() req: { ip?: string }) {
     // 29-jul-2026 -- el formulario ahora pide nombres y apellidos por
     // separado (mejor validación, más claro para el usuario), pero el
     // resto del sistema (boletos, comprobantes, recibos) ya depende de
     // un solo campo `nombreCompleto` en muchos lugares — se combinan
     // aquí, en el borde, sin propagar el cambio a todo lo demás.
-    const { nombres, apellidos, codigoReferido, ...resto } = datos;
+    const { nombres, apellidos, codigoReferido, aceptoTerminos, ...resto } = datos;
     return this.authService.registrar(
       {
         ...resto,
         nombreCompleto: `${nombres.trim()} ${apellidos.trim()}`,
       },
+      aceptoTerminos,
+      req.ip,
       codigoReferido,
     );
   }

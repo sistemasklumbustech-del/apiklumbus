@@ -38,6 +38,7 @@ describe('Catálogo de entidad financiera (e2e)', () => {
     // Setup: cooperativa real, mismo patrón ya usado en otras pruebas.
     const correoDirector = `director.entidad.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo: correoDirector,
       password: 'ClaveSegura123',
       nombres: 'Director',

@@ -47,6 +47,7 @@ describe('Frontera de seguridad: super_admin vs admin_plataforma (e2e)', () => {
     await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: correoSuperAdmin,
         password: 'ClaveSegura123',
         nombres: 'Super',
@@ -58,6 +59,7 @@ describe('Frontera de seguridad: super_admin vs admin_plataforma (e2e)', () => {
     await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: correoAdminPlataforma,
         password: 'ClaveSegura123',
         nombres: 'Admin',

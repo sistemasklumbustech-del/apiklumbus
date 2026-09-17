@@ -38,7 +38,7 @@ export class VentasController {
   @Post()
   async crearCompra(
     @Body() dto: CrearCompraDto,
-    @Request() req: { user: PayloadToken | null },
+    @Request() req: { user: PayloadToken | null; ip?: string },
   ) {
     return this.checkout.procesarCompra(
       dto.pasajeros,
@@ -49,6 +49,8 @@ export class VentasController {
       dto.correoContacto,
       dto.sesionInvitadoId,
       dto.usarSaldoWallet,
+      dto.aceptoTerminos,
+      req.ip,
     );
   }
 

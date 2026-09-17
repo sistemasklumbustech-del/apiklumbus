@@ -56,6 +56,7 @@ describe('Horarios recurrentes y cancelación masiva (e2e)', () => {
     await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: correoAdmin,
         password: 'ClaveSegura123',
         nombres: 'Director',
@@ -109,6 +110,7 @@ describe('Horarios recurrentes y cancelación masiva (e2e)', () => {
     await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: correoPasajero,
         password: 'ClaveSegura123',
         nombres: 'Pasajero',

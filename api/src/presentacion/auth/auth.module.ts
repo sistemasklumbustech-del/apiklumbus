@@ -21,6 +21,7 @@ import { SimuladorAlmacenamiento } from '../../infraestructura/almacenamiento/si
 import { JwtStrategy } from './guards/jwt.strategy';
 import { RolesGuard } from './guards/roles.guard';
 import { ReferidosModule } from '../referidos/referidos.module';
+import { TerminosModule } from '../terminos/terminos.module';
 
 /**
  * Este módulo es el único lugar donde se decide QUÉ implementación
@@ -35,6 +36,7 @@ import { ReferidosModule } from '../referidos/referidos.module';
     ConfigModule,
     PassportModule,
     ReferidosModule,
+    TerminosModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

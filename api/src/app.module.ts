@@ -21,6 +21,7 @@ import { ApiExternaModule } from './presentacion/api-externa/api-externa.module'
 import { GeneradorViajesModule } from './presentacion/generador-viajes/generador-viajes.module';
 import { WalletModule } from './presentacion/wallet/wallet.module';
 import { ReferidosModule } from './presentacion/referidos/referidos.module';
+import { TerminosModule } from './presentacion/terminos/terminos.module';
 
 /**
  * 27-jul-2026 -- rate limiting global (RNF-SEG, Fase B). Limite por
@@ -64,6 +65,7 @@ import { ReferidosModule } from './presentacion/referidos/referidos.module';
     GeneradorViajesModule,
     WalletModule,
     ReferidosModule,
+    TerminosModule,
   ],
   controllers: [AppController, SaludController],
   providers: [

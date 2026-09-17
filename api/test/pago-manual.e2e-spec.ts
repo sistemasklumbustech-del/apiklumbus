@@ -42,6 +42,7 @@ describe('Métodos de pago manuales (e2e)', () => {
 
     const correoDirector = `director.pago.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo: correoDirector,
       password: 'ClaveSegura123',
       nombres: 'Director',
@@ -134,6 +135,7 @@ describe('Métodos de pago manuales (e2e)', () => {
     const pasajero = await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: `pasajero.pago.${sufijo}@ticketya.ec`,
         password: 'ClaveSegura123',
         nombres: 'Pasajero',
@@ -335,6 +337,7 @@ describe('Métodos de pago manuales (e2e)', () => {
     const otroPasajero = await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: `pasajero.otro.${sufijo}@ticketya.ec`,
         password: 'ClaveSegura123',
         nombres: 'Otro',
@@ -366,6 +369,7 @@ describe('Métodos de pago manuales (e2e)', () => {
 
     const otroToken = (
       await request(app.getHttpServer()).post('/auth/registro').send({
+        aceptoTerminos: true,
         correo: `pasajero.intruso.${sufijo}@ticketya.ec`,
         password: 'ClaveSegura123',
         nombres: 'Intruso',

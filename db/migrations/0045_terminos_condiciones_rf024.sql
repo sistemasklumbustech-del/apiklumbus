@@ -43,3 +43,38 @@ CREATE INDEX "idx_terminos_aceptaciones_usuario" ON "terminos_aceptaciones" USIN
 CREATE INDEX "idx_terminos_aceptaciones_compra" ON "terminos_aceptaciones" USING btree ("compra_id");
 --> statement-breakpoint
 CREATE INDEX "idx_terminos_aceptaciones_version" ON "terminos_aceptaciones" USING btree ("terminos_version_id");
+--> statement-breakpoint
+
+-- Versión inicial (1.0) -- mismo contenido que ya vive hoy en la
+-- página estática columbus-web/app/terminos/page.tsx (borrador de
+-- buena fe, no revisión legal formal), para que la tabla nunca quede
+-- vacía: sin esto, registro y checkout de invitado quedarían
+-- bloqueados apenas se aplique esta migración (RF-024 exige una
+-- versión vigente para poder registrar una aceptación). vigente_desde
+-- usa la misma fecha que ya mostraba esa página ("agosto de 2026").
+INSERT INTO "terminos_condiciones" ("version", "contenido", "vigente_desde") VALUES (
+  '1.0',
+  $$1. Qué es Columbus
+Columbus es una plataforma que te permite buscar, comparar y comprar boletos de bus intermunicipal de distintas cooperativas de transporte. Columbus no opera los buses ni presta el servicio de transporte directamente -- cada viaje lo realiza la cooperativa de transporte correspondiente, que es la responsable de su propia flota, horarios, y cumplimiento de las normas de transporte terrestre vigentes en Ecuador.
+
+2. Tu cuenta
+Puedes comprar un boleto con o sin crear una cuenta. Si creas una cuenta, eres responsable de mantener segura tu contraseña y de la actividad que ocurra bajo tu usuario. Debes darnos información real y actualizada -- especialmente tu cédula o pasaporte, ya que es el dato con el que se valida tu identidad al abordar.
+
+3. Compra de boletos
+Al comprar un boleto, el precio final que ves antes de pagar incluye la tarifa del pasaje, la tasa de terminal (cuando aplica), el cargo de la plataforma, y el IVA según corresponda. Los descuentos legales (menor de edad, tercera edad, discapacidad) se calculan según lo que exige la normativa ecuatoriana vigente.
+
+4. Cancelaciones y reprogramaciones
+Cada cooperativa define su propia política de cancelación y reprogramación -- algunas la permiten con cierto límite de horas antes del viaje, otras no. Esa política se te muestra siempre antes de confirmar tu compra. Columbus no puede anular la política que la cooperativa haya definido para su propio servicio.
+
+5. Tu responsabilidad como pasajero
+- Llegar a tiempo al punto de embarque con tu documento de identidad.
+- Mostrar tu código QR o el código de tu boleto al personal de la cooperativa.
+- Respetar las normas internas de cada unidad de transporte.
+
+6. Cambios a estos Términos
+Podemos actualizar estos Términos conforme la plataforma crece. Si el cambio es significativo, te lo haremos saber de forma visible en el sitio.
+
+7. Contacto
+Si tienes dudas sobre estos Términos, puedes escribirnos a través de los datos de contacto que aparecen en el pie de página de este sitio.$$,
+  '2026-08-20 00:00:00-05'
+);

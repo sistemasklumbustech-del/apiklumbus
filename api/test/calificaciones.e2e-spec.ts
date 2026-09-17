@@ -37,6 +37,7 @@ describe('Calificaciones de viaje (e2e)', () => {
 
     const correoDirector = `director.calif.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo: correoDirector,
       password: 'ClaveSegura123',
       nombres: 'Director', apellidos: 'Calificaciones Prueba',
@@ -147,6 +148,7 @@ describe('Calificaciones de viaje (e2e)', () => {
     const pasajero = await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: `pasajero.calif.${sufijo}@ticketya.ec`,
         password: 'ClaveSegura123',
         nombres: 'Pasajero', apellidos: 'Calificaciones Prueba',
@@ -156,6 +158,7 @@ describe('Calificaciones de viaje (e2e)', () => {
     const otroPasajero = await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: `otro.pasajero.calif.${sufijo}@ticketya.ec`,
         password: 'ClaveSegura123',
         nombres: 'Otro', apellidos: 'Pasajero Calificaciones Prueba',

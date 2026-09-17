@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, IsOptional, Matches } from 'class-validator';
+import { IsBoolean, IsEmail, IsString, MinLength, IsOptional, Matches } from 'class-validator';
 
 /**
  * Validación real de registro (29-jul-2026, hallazgo del usuario):
@@ -41,4 +41,12 @@ export class RegistroDto {
   @IsOptional()
   @IsString()
   codigoReferido?: string;
+
+  /**
+   * RF-024 -- el mensaje real ("debes aceptar...") lo da
+   * TerminosService, no un mensaje genérico de class-validator, por
+   * eso solo se valida el tipo aquí y no @Equals(true).
+   */
+  @IsBoolean()
+  aceptoTerminos!: boolean;
 }

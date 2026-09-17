@@ -208,4 +208,14 @@ export class CrearCompraDto {
   @IsOptional()
   @IsBoolean()
   usarSaldoWallet?: boolean;
+
+  /**
+   * RF-024 -- solo obligatorio para compra de invitado (sin cuenta);
+   * quien ya tiene cuenta aceptó al registrarse (ver auth.service.ts,
+   * no se le vuelve a pedir en cada compra). Se valida en
+   * checkout.service.ts, no aquí, porque depende de si hay usuarioId.
+   */
+  @IsOptional()
+  @IsBoolean()
+  aceptoTerminos?: boolean;
 }

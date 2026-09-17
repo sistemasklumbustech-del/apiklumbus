@@ -41,6 +41,7 @@ describe('Autenticación (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post('/auth/registro')
         .send({
+          aceptoTerminos: true,
           correo,
           password: 'ClaveSegura123',
           nombres: 'Pasajero', apellidos: 'Prueba E2E',
@@ -55,6 +56,7 @@ describe('Autenticación (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post('/auth/registro')
         .send({
+          aceptoTerminos: true,
           correo: `cedula.mala.${sufijo}@ticketya.ec`,
           password: 'ClaveSegura123',
           nombres: 'Pasajero',
@@ -69,6 +71,7 @@ describe('Autenticación (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post('/auth/registro')
         .send({
+          aceptoTerminos: true,
           correo: `telefono.malo.${sufijo}@ticketya.ec`,
           password: 'ClaveSegura123',
           nombres: 'Pasajero',
@@ -83,6 +86,7 @@ describe('Autenticación (e2e)', () => {
       await request(app.getHttpServer())
         .post('/auth/registro')
         .send({
+          aceptoTerminos: true,
           correo: `sin.apellido.${sufijo}@ticketya.ec`,
           password: 'ClaveSegura123',
           nombres: 'Pasajero',
@@ -94,6 +98,7 @@ describe('Autenticación (e2e)', () => {
       await request(app.getHttpServer())
         .post('/auth/registro')
         .send({
+          aceptoTerminos: true,
           correo,
           password: 'ClaveSegura123',
           nombres: 'Duplicado', apellidos: 'Apellido',
@@ -106,6 +111,7 @@ describe('Autenticación (e2e)', () => {
       await request(app.getHttpServer())
         .post('/auth/registro')
         .send({
+          aceptoTerminos: true,
           correo: `otra.${sufijo}@ticketya.ec`,
           password: 'corta',
           nombres: 'Alguien', apellidos: 'Apellido',
@@ -117,6 +123,7 @@ describe('Autenticación (e2e)', () => {
       await request(app.getHttpServer())
         .post('/auth/registro')
         .send({
+          aceptoTerminos: true,
           correo: 'esto-no-es-un-correo',
           password: 'ClaveSegura123',
           nombres: 'Alguien', apellidos: 'Apellido',
@@ -133,6 +140,7 @@ describe('Autenticación (e2e)', () => {
       await request(app.getHttpServer())
         .post('/auth/registro')
         .send({
+          aceptoTerminos: true,
           correo,
           password: passwordCorrecta,
           nombres: 'Login', apellidos: 'Prueba E2E',
@@ -173,6 +181,7 @@ describe('Autenticación (e2e)', () => {
       await request(app.getHttpServer())
         .post('/auth/registro')
         .send({
+          aceptoTerminos: true,
           correo: correoBloqueo,
           password: passwordCorrecta,
           nombres: 'Bloqueo', apellidos: 'Prueba E2E',
@@ -248,6 +257,7 @@ describe('Autenticación (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post('/auth/registro')
         .send({
+          aceptoTerminos: true,
           correo,
           password: 'ClaveSegura123',
           nombres: 'Perfil', apellidos: 'Prueba E2E',
@@ -341,6 +351,7 @@ describe('Autenticación (e2e)', () => {
       const registro = await request(app.getHttpServer())
         .post('/auth/registro')
         .send({
+          aceptoTerminos: true,
           correo: correoIdentidad,
           password: 'ClaveSegura123',
           nombres: 'Identidad', apellidos: 'Prueba E2E',
@@ -396,6 +407,7 @@ describe('Autenticación (e2e)', () => {
       const reg = await request(app.getHttpServer())
         .post('/auth/registro')
         .send({
+          aceptoTerminos: true,
           correo,
           password: 'ClaveSegura123',
           nombres: 'Cambio',

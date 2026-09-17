@@ -34,6 +34,7 @@ describe('Wallet / cashback (e2e)', () => {
 
     const correoDirector = `director.wallet.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo: correoDirector,
       password: 'ClaveSegura123',
       nombres: 'Director', apellidos: 'Wallet Prueba',
@@ -130,6 +131,7 @@ describe('Wallet / cashback (e2e)', () => {
     const pasajero = await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: `pasajero.wallet.${sufijo}@ticketya.ec`,
         password: 'ClaveSegura123',
         nombres: 'Pasajero', apellidos: 'Wallet Prueba',
@@ -159,6 +161,7 @@ describe('Wallet / cashback (e2e)', () => {
     const compra = await request(app.getHttpServer())
       .post('/compras')
       .send({
+        aceptoTerminos: true,
         pasajeros: [
           {
             viajeId,
@@ -310,6 +313,7 @@ describe('Wallet / cashback (e2e)', () => {
   it('solo super_admin puede cambiar el porcentaje de cashback -- admin_plataforma recibe 403', async () => {
     const correoAdminPlataforma = `admin.plataforma.wallet.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo: correoAdminPlataforma,
       password: 'ClaveSegura123',
       nombres: 'Admin', apellidos: 'Plataforma Wallet Prueba',
@@ -413,6 +417,7 @@ describe('Wallet / cashback (e2e)', () => {
     const compra = await request(app.getHttpServer())
       .post('/compras')
       .send({
+        aceptoTerminos: true,
         pasajeros: [
           {
             viajeId,

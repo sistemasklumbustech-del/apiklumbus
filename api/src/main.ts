@@ -10,6 +10,13 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // RF-024 -- la API corre detrás de Nginx (reverse proxy), así que sin
+  // esto `req.ip` siempre devuelve la IP local de Nginx, nunca la del
+  // cliente real -- inútil tanto para el registro de aceptación de
+  // Términos como para el rate limiting por IP (@nestjs/throttler)
+  // configurado más abajo en AppModule, que hasta ahora limitaba a
+  // TODO el tráfico combinado como si fuera un solo cliente.
+  app.set('trust proxy', 1);
   // Activa las validaciones de class-validator en cada DTO (@IsEmail,
   // @MinLength, etc.) -- sin esto, los decoradores de los DTO no hacen
   // nada, solo son anotaciones sin efecto.

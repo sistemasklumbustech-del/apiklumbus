@@ -41,6 +41,7 @@ describe('Liquidaciones a cooperativas (e2e)', () => {
     await request(app.getHttpServer())
       .post('/auth/registro')
       .send({
+        aceptoTerminos: true,
         correo: correoAdmin,
         password: 'ClaveSegura123',
         nombres: 'Director', apellidos: 'Liquidaciones E2E',

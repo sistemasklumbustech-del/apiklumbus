@@ -29,6 +29,7 @@ import {
   generarUriTotp,
 } from '../../dominio/auth/auth.ports';
 import { ReferidosService } from '../referidos/referidos.service';
+import { TerminosService } from '../terminos/terminos.service';
 
 export const USUARIO_REPOSITORIO = 'USUARIO_REPOSITORIO';
 export const HASHER_CONTRASENA = 'HASHER_CONTRASENA';
@@ -73,10 +74,20 @@ export class AuthService {
     @Inject(ALMACENAMIENTO_ARCHIVOS) private readonly almacenamiento: AlmacenamientoArchivos,
     @Inject(CIFRADOR_TOTP) private readonly cifradorTotp: CifradorTotp,
     private readonly referidos: ReferidosService,
+    private readonly terminos: TerminosService,
   ) {}
 
   /** RF-AUTH-001 — registro de pasajero. */
-  async registrar(datos: DatosRegistro, codigoReferido?: string) {
+  async registrar(
+    datos: DatosRegistro,
+    aceptoTerminos: boolean,
+    direccionIp?: string,
+    codigoReferido?: string,
+  ) {
+    // RF-024 -- fail fast, antes de tocar la base, mismo criterio que
+    // el resto de validaciones de esta capa.
+    this.terminos.validarAceptada(aceptoTerminos);
+
     const existente = await this.usuarios.buscarPorCorreo(datos.correo);
     if (existente) {
       throw new ConflictException('Ya existe una cuenta con ese correo.');
@@ -86,6 +97,11 @@ export class AuthService {
     const usuario = await this.usuarios.crearPasajero({
       ...datos,
       password: passwordHash,
+    });
+
+    await this.terminos.registrarAceptacion({
+      usuarioId: usuario.id,
+      direccionIp,
     });
 
     // Programa de referidos (13-ago-2026) -- se genera el código de

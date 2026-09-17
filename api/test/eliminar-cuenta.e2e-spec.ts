@@ -44,6 +44,7 @@ describe('Eliminación de cuenta (e2e)', () => {
   it('rechaza eliminar sin contraseña, para una cuenta que sí tiene contraseña', async () => {
     const correo = `elim.sinpass.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo,
       password: 'ClaveSegura123',
       nombres: 'Elim',
@@ -64,6 +65,7 @@ describe('Eliminación de cuenta (e2e)', () => {
   it('rechaza eliminar con contraseña incorrecta', async () => {
     const correo = `elim.passmal.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo,
       password: 'ClaveSegura123',
       nombres: 'Elim',
@@ -86,6 +88,7 @@ describe('Eliminación de cuenta (e2e)', () => {
     // algo legítimo que verificar después de eliminar.
     const correoDirector = `director.elim.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo: correoDirector,
       password: 'ClaveSegura123',
       nombres: 'Director',
@@ -164,6 +167,7 @@ describe('Eliminación de cuenta (e2e)', () => {
     // El pasajero real que vamos a eliminar.
     const correoPasajero = `elim.compra.${sufijo}@ticketya.ec`;
     await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo: correoPasajero,
       password: 'ClaveSegura123',
       nombres: 'Pasajero',
@@ -268,6 +272,7 @@ describe('Eliminación de cuenta (e2e)', () => {
     // quedaría una cuenta real vía Google/proveedor externo.
     const correo = `elim.externa.${sufijo}@ticketya.ec`;
     const registro = await request(app.getHttpServer()).post('/auth/registro').send({
+      aceptoTerminos: true,
       correo,
       password: 'ClaveSegura123',
       nombres: 'Elim',
