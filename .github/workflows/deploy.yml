@@ -1,0 +1,32 @@
+name: Deploy backend
+
+# Push a main -> despliegue automático al VPS. workflow_dispatch permite
+# also re-disparar el mismo deploy a mano desde la pestaña Actions de
+# GitHub sin necesitar un commit nuevo (util si el deploy anterior
+# fallo por una razon transitoria, ej. el VPS estaba reiniciando).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy vía SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/apiklumbus
+            git fetch origin main
+            git reset --hard origin/main
+            npm install
+            cd db && npm run build
+            cd ../api && npm run build
+            sudo systemctl restart columbus-api.service
+            sleep 2
+            systemctl is-active columbus-api.service
