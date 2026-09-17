@@ -11,6 +11,7 @@ import {
   puntosOperacion,
   cooperativas,
   compras,
+  comprasTransiciones,
   pasajerosCompra,
   pagos,
   boletos,
@@ -57,6 +58,41 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
     @Inject(DRIZZLE_DB) private readonly dbApp: DrizzleDb,
     @Inject(NOTIFICADOR_EMAIL) private readonly email: NotificadorEmail,
   ) {}
+
+  // RF-006 — registra el cambio de estado explícito de la compra y su
+  // historial inmutable en un solo lugar, para que cada punto del flujo
+  // (creación, confirmación, rechazo) no tenga que repetir el UPDATE +
+  // INSERT a mano. Sin transacción envolvente, igual que el resto de
+  // este archivo (ver crearCompraPendiente) -- cada sentencia hace
+  // commit por su cuenta contra dbPublico.
+  private async transicionar(
+    compraId: string,
+    estadoNuevo: (typeof compras.$inferSelect)['estado'],
+    opts: {
+      actorUsuarioId?: string;
+      actorSistema?: string;
+      referenciaExterna?: string;
+    } = {},
+  ): Promise<void> {
+    const [actual] = await this.dbPublico
+      .select({ estado: compras.estado })
+      .from(compras)
+      .where(eq(compras.id, compraId));
+
+    await this.dbPublico
+      .update(compras)
+      .set({ estado: estadoNuevo, actualizadoEn: new Date() })
+      .where(eq(compras.id, compraId));
+
+    await this.dbPublico.insert(comprasTransiciones).values({
+      compraId,
+      estadoAnterior: actual?.estado ?? null,
+      estadoNuevo,
+      actorUsuarioId: opts.actorUsuarioId,
+      actorSistema: opts.actorSistema,
+      referenciaExterna: opts.referenciaExterna,
+    });
+  }
 
   async buscarPagoPorIdempotencyKey(
     idempotencyKey: string,
@@ -372,6 +408,10 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
       estado: 'pendiente',
     });
 
+    await this.transicionar(compra.id, 'pendiente_pago', {
+      actorSistema: 'sistema',
+    });
+
     return { compraId: compra.id, mapeo };
   }
 
@@ -578,6 +618,19 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
       .set({ estado: 'aprobado', confirmadoPorUsuarioId })
       .where(eq(pagos.id, pagoId));
 
+    await this.transicionar(pago.compraId, 'pagada', {
+      actorUsuarioId: confirmadoPorUsuarioId,
+    });
+    await this.transicionar(pago.compraId, 'boleto_confirmado', {
+      actorUsuarioId: confirmadoPorUsuarioId,
+    });
+    await this.transicionar(pago.compraId, 'tasa_confirmada', {
+      actorUsuarioId: confirmadoPorUsuarioId,
+    });
+    await this.transicionar(pago.compraId, 'completada', {
+      actorUsuarioId: confirmadoPorUsuarioId,
+    });
+
     const montoCargoPlataforma = filasTipadas.reduce(
       (acc, f) => acc + Number(f.cargo_plataforma ?? 0),
       0,
@@ -630,6 +683,10 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
         respuestaProveedor: { motivo: motivo ?? 'Rechazado por la cooperativa.' },
       })
       .where(eq(pagos.id, pagoId));
+
+    await this.transicionar(pago.compraId, 'fallida', {
+      actorUsuarioId: confirmadoPorUsuarioId,
+    });
 
     return { ok: true };
   }
@@ -763,6 +820,20 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
       .set({ estado: 'aprobado', referenciaExterna })
       .where(eq(pagos.compraId, compraId));
 
+    await this.transicionar(compraId, 'pagada', {
+      actorSistema: 'pasarela_pago',
+      referenciaExterna,
+    });
+    await this.transicionar(compraId, 'boleto_confirmado', {
+      actorSistema: 'sistema',
+    });
+    await this.transicionar(compraId, 'tasa_confirmada', {
+      actorSistema: 'sistema',
+    });
+    await this.transicionar(compraId, 'completada', {
+      actorSistema: 'sistema',
+    });
+
     return { boletos: boletosEmitidos };
   }
 
@@ -771,6 +842,10 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
       .update(pagos)
       .set({ estado: 'rechazado', respuestaProveedor: { motivo } })
       .where(eq(pagos.compraId, compraId));
+
+    await this.transicionar(compraId, 'fallida', {
+      actorSistema: 'pasarela_pago',
+    });
   }
 
   async cancelarBoleto(
