@@ -190,6 +190,10 @@ export class BusquedaService {
       // rechazado) nunca debe aparecer en un resultado de búsqueda real.
       eq(origen.estado, 'aprobado'),
       eq(destino.estado, 'aprobado'),
+      // RN-01 (hallazgo real, 17-sep-2026): faltaba por completo --
+      // una cooperativa suspendida o dada de baja seguía apareciendo en
+      // resultados de búsqueda porque nada filtraba por su estado.
+      eq(cooperativas.estado, 'aprobada'),
     ];
 
     if (horaDesde && horaHasta) {

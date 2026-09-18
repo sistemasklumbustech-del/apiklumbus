@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CheckoutService } from '../../aplicacion/ventas/checkout.service';
-import { CrearCompraDto } from './dto/crear-compra.dto';
+import { CrearCompraDto, CotizarCompraDto } from './dto/crear-compra.dto';
 import { ReprogramarBoletoDto } from './dto/reprogramar-boleto.dto';
 import { IniciarPagoManualDto } from './dto/pago-manual.dto';
 import { SolicitarFacturaDto } from './dto/solicitar-factura.dto';
@@ -51,6 +51,23 @@ export class VentasController {
       dto.usarSaldoWallet,
       dto.aceptoTerminos,
       req.ip,
+    );
+  }
+
+  /**
+   * RF-003 -- desglose real antes de pagar, sin crear ninguna compra.
+   * Mismo OptionalJwtAuthGuard que crearCompra (invitado o con cuenta).
+   */
+  @UseGuards(OptionalJwtAuthGuard)
+  @Post('cotizar')
+  async cotizarCompra(
+    @Body() dto: CotizarCompraDto,
+    @Request() req: { user: PayloadToken | null },
+  ) {
+    return this.checkout.cotizarCompra(
+      dto.pasajeros,
+      req.user?.sub ?? null,
+      dto.sesionInvitadoId,
     );
   }
 

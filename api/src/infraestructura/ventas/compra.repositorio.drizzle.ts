@@ -195,6 +195,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
           tasaTerminal: puntosOperacion.tasaMonto,
           ivaPorcentaje: cooperativas.ivaPorcentaje,
           ivaVisibleEnBoleto: cooperativas.ivaVisibleEnBoleto,
+          cooperativaEstado: cooperativas.estado,
         })
         .from(viajeAsientos)
         .innerJoin(viajes, eq(viajeAsientos.viajeId, viajes.id))
@@ -221,6 +222,17 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
       }
 
       const f = fila[0];
+
+      // RN-01 / RN-12 (hallazgo real, 17-sep-2026): faltaba por
+      // completo -- una cooperativa suspendida o dada de baja podía
+      // seguir vendiendo boletos de sus viajes ya programados, porque
+      // ningún punto del checkout validaba su estado.
+      if (f.cooperativaEstado !== 'aprobada') {
+        throw new BadRequestException(
+          'Esta cooperativa no está habilitada para vender en este momento.',
+        );
+      }
+
       const holdVigente =
         f.holdExpiraEn && new Date(f.holdExpiraEn).getTime() > Date.now();
 
@@ -294,6 +306,8 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
     proveedor: string = 'simulado',
     telefonoContacto?: string,
     correoContacto?: string,
+    vendedorUsuarioId?: string,
+    canal: 'en_linea' | 'ventanilla' = 'en_linea',
   ): Promise<{ compraId: string; mapeo: MapeoAsientoPasajero[] }> {
     const montoTarifasCooperativa = desglose.reduce(
       (a, d) => a + d.precioPagado,
@@ -319,7 +333,8 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
         // Item 31, Fase 7 (11-ago-2026) -- compra como invitado.
         telefonoContacto: telefonoContacto ?? null,
         correoContacto: correoContacto ?? null,
-        canal: 'en_linea',
+        canal,
+        vendedorUsuarioId: vendedorUsuarioId ?? null,
         montoTotal: montoTotal.toFixed(2),
         montoTarifasCooperativa: montoTarifasCooperativa.toFixed(2),
         montoCargoPlataforma: montoCargoPlataforma.toFixed(2),

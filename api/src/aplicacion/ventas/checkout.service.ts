@@ -66,6 +66,45 @@ export class CheckoutService {
    * (deja el hold expirar solo, RF-CHECK-004: "sin bloquear el asiento
    * indefinidamente").
    */
+  /**
+   * RF-003 (hallazgo real, 17-sep-2026): antes no existía ninguna
+   * forma de ver el desglose EXACTO antes de pagar -- procesarCompra
+   * crea la orden y cobra en la misma llamada, así que el total
+   * "antes de pagar" que veía el pasajero era, en el mejor de los
+   * casos, una estimación. Esta cotización reutiliza el mismo cálculo
+   * real de validarYCalcularAsientos (mismo precio, misma tasa, mismo
+   * cargo de plataforma, mismo IVA que se cobraría de verdad) sin
+   * crear ninguna compra ni tocar el pago -- solo lectura. El
+   * frontend la usa para el modal de "revisa antes de confirmar", y
+   * llama a procesarCompra/venderEnVentanilla recién después de que
+   * el usuario confirma explícitamente.
+   */
+  async cotizarCompra(
+    pasajeros: PasajeroCheckout[],
+    usuarioId: string | null,
+    sesionInvitadoId?: string,
+  ) {
+    const desglose = await this.compras.validarYCalcularAsientos(
+      pasajeros,
+      usuarioId,
+      sesionInvitadoId ?? null,
+    );
+    const montoTarifasCooperativa = desglose.reduce((a, d) => a + d.precioPagado, 0);
+    const montoTasaTerminal = desglose.reduce((a, d) => a + d.tasaTerminal, 0);
+    const montoCargoPlataforma = desglose.reduce((a, d) => a + d.cargoPlataforma, 0);
+    const montoImpuestos = desglose.reduce((a, d) => a + d.ivaMonto, 0);
+    const montoTotal = montoTarifasCooperativa + montoTasaTerminal + montoCargoPlataforma;
+
+    return {
+      desglose,
+      montoTarifasCooperativa: Number(montoTarifasCooperativa.toFixed(2)),
+      montoTasaTerminal: Number(montoTasaTerminal.toFixed(2)),
+      montoCargoPlataforma: Number(montoCargoPlataforma.toFixed(2)),
+      montoImpuestos: Number(montoImpuestos.toFixed(2)),
+      montoTotal: Number(montoTotal.toFixed(2)),
+    };
+  }
+
   // Item 31, Fase 7 (11-ago-2026) -- compra como invitado. Al menos
   // uno de usuarioId/telefonoContacto/correoContacto debe traer valor
   // (validado abajo).
@@ -1020,6 +1059,70 @@ export class CheckoutService {
     await this.compras.marcarAsientosPendientesConfirmacionPago(mapeo);
 
     return { compraId, estado: 'pendiente_confirmacion' as const };
+  }
+
+  /**
+   * Venta presencial en ventanilla (17-sep-2026) -- hallazgo real: el
+   * único flujo de pago manual que existía (iniciarPagoManual, arriba)
+   * exige el JWT del propio pasajero, así que no servía para el caso
+   * real del terminal -- alguien que llega sin celular y sin cuenta, y
+   * el vendedor le vende directo en el mostrador. Este método asume
+   * que el vendedor YA bloqueó el asiento con su propia cuenta (mismo
+   * endpoint POST /viajes/:id/asientos/:numero/bloquear que usa
+   * cualquier pasajero) -- por eso `validarYCalcularAsientos` recibe
+   * el id del VENDEDOR como dueño del hold, no el del comprador (que
+   * no existe). La compra en sí queda sin cuenta (usuarioId null,
+   * canal='ventanilla'), con `vendedorUsuarioId` para trazabilidad.
+   *
+   * Se confirma al instante (mismo criterio real de una ventanilla
+   * física: el vendedor ya tiene el dinero en mano, efectivo o
+   * datáfono, antes de entregar el boleto) -- a diferencia de
+   * iniciarPagoManual, no hay paso de "sube tu comprobante" ni espera
+   * de confirmación posterior.
+   */
+  async venderEnVentanilla(
+    pasajeros: PasajeroCheckout[],
+    vendedorUsuarioId: string,
+    cooperativaId: string,
+    tipoMetodoPago: 'efectivo' | 'tarjeta_fisica' | 'transferencia_bancaria',
+    telefonoContacto?: string,
+    correoContacto?: string,
+  ) {
+    const desglose = await this.compras.validarYCalcularAsientos(
+      pasajeros,
+      vendedorUsuarioId,
+      null,
+    );
+
+    if (desglose.some((d) => d.cooperativaId !== cooperativaId)) {
+      throw new ForbiddenException(
+        'No puedes vender asientos de una cooperativa distinta a la tuya.',
+      );
+    }
+
+    const idempotencyKey = randomUUID();
+    const { compraId, mapeo } = await this.compras.crearCompraPendiente(
+      null,
+      pasajeros,
+      desglose,
+      idempotencyKey,
+      tipoMetodoPago,
+      telefonoContacto,
+      correoContacto,
+      vendedorUsuarioId,
+      'ventanilla',
+    );
+
+    const { boletos } = await this.compras.confirmarPago(
+      compraId,
+      `venta-ventanilla-${vendedorUsuarioId}`,
+      mapeo,
+    );
+
+    const cargoPlataformaTotal = desglose.reduce((acc, d) => acc + d.cargoPlataforma, 0);
+    await this.generarFacturaPlataforma(compraId, cargoPlataformaTotal);
+
+    return { compraId, boletos };
   }
 
   async subirComprobantePago(

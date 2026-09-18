@@ -47,6 +47,7 @@ import {
   ProponerPuntoOperacionDto,
 } from './dto/panel-empresa.dto';
 import { GuardarMetodoPagoDto, ConfirmarPagoManualDto, MarcarFacturaEmitidaDto } from './dto/metodos-pago.dto';
+import { VenderEnVentanillaDto, CotizarVentanillaDto } from './dto/venta-ventanilla.dto';
 import { CrearCredencialApiDto, ActualizarWebhookCredencialApiDto } from './dto/credenciales-api.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard, Roles } from '../auth/guards/roles.guard';
@@ -666,6 +667,40 @@ export class PanelEmpresaController {
       dto.webhookUrl && dto.webhookUrl.trim() !== '' ? dto.webhookUrl : null,
     );
     return { ok: true };
+  }
+
+  /**
+   * Venta presencial en ventanilla (17-sep-2026) -- para el pasajero
+   * que llega sin celular y sin cuenta al mostrador del terminal. El
+   * vendedor debe haber bloqueado el asiento primero con su propia
+   * cuenta (mismo endpoint POST /viajes/:id/asientos/:numero/bloquear
+   * que usa cualquier pasajero) -- este endpoint solo crea y confirma
+   * la venta al instante, sin paso de comprobante.
+   */
+  /** RF-003 -- desglose real antes de vender, sin crear ninguna compra. */
+  @Roles('admin_cooperativa', 'vendedor')
+  @Post('ventanilla/cotizar')
+  async cotizarVentanilla(
+    @Body() dto: CotizarVentanillaDto,
+    @Request() req: { user: PayloadToken },
+  ) {
+    return this.checkout.cotizarCompra(dto.pasajeros, req.user.sub);
+  }
+
+  @Roles('admin_cooperativa', 'vendedor')
+  @Post('ventanilla/vender')
+  async venderEnVentanilla(
+    @Body() dto: VenderEnVentanillaDto,
+    @Request() req: { user: PayloadToken },
+  ) {
+    return this.checkout.venderEnVentanilla(
+      dto.pasajeros,
+      req.user.sub,
+      cooperativaDelToken(req.user),
+      dto.tipoMetodoPago,
+      dto.telefonoContacto,
+      dto.correoContacto,
+    );
   }
 
   /**

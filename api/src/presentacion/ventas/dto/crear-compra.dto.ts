@@ -156,6 +156,19 @@ export class PasajeroCheckoutDto {
   numeroDocumentoDiscapacidad?: string;
 }
 
+/** RF-003 -- solo lo mínimo para calcular el desglose real, sin crear ninguna compra. */
+export class CotizarCompraDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => PasajeroCheckoutDto)
+  pasajeros!: PasajeroCheckoutDto[];
+
+  @IsOptional()
+  @IsString()
+  sesionInvitadoId?: string;
+}
+
 export class CrearCompraDto {
   @IsArray()
   @ArrayMinSize(1)

@@ -207,6 +207,9 @@ export interface CompraRepositorio {
     proveedor?: string,
     telefonoContacto?: string,
     correoContacto?: string,
+    /** Venta en ventanilla (17-sep-2026) -- ambos juntos identifican una venta presencial; ninguno se usa en el checkout en línea. */
+    vendedorUsuarioId?: string,
+    canal?: 'en_linea' | 'ventanilla',
   ): Promise<{ compraId: string; mapeo: MapeoAsientoPasajero[] }>;
 
   /**
