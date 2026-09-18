@@ -527,6 +527,8 @@ export interface PasajeroDeViaje {
   tipoTarifa: string;
   esMenorEdad: boolean;
   estadoBoleto: string;
+  /** Hallazgo real, 18-sep-2026 -- staff no tenía forma de recuperar el QR de una venta ya hecha (ej. reimprimir, o revisar un reclamo). */
+  codigoQr: string;
 }
 
 /**

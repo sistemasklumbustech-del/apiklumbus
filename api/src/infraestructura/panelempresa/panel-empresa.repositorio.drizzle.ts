@@ -762,7 +762,7 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
     return ejecutarComoCooperativa(this.db, cooperativaId, async (tx) => {
       const resultado = await tx.execute(sql`
         SELECT va.numero_asiento, pc.nombres || ' ' || pc.apellidos AS nombre_completo, pc.documento,
-               pc.tipo_tarifa, pc.es_menor_edad, b.estado
+               pc.tipo_tarifa, pc.es_menor_edad, b.estado, b.codigo_qr
         FROM viaje_asientos va
         JOIN boletos b ON b.viaje_asiento_id = va.id
         JOIN pasajeros_compra pc ON pc.id = b.pasajero_compra_id
@@ -778,6 +778,7 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
           tipo_tarifa: string;
           es_menor_edad: boolean;
           estado: string;
+          codigo_qr: string;
         };
         return {
           numeroAsiento: f.numero_asiento,
@@ -786,6 +787,7 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
           tipoTarifa: f.tipo_tarifa,
           esMenorEdad: f.es_menor_edad,
           estadoBoleto: f.estado,
+          codigoQr: f.codigo_qr,
         };
       });
     });
