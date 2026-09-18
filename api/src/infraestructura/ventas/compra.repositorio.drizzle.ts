@@ -601,6 +601,24 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
     }
 
     await ejecutarComoCooperativa(this.dbApp, cooperativaId, async (tx) => {
+      // Hallazgo real (18-sep-2026, primera venta de prueba en
+      // ventanilla): comprobantes_tasa_terminal.registro_tasa_terminal_id
+      // es NOT NULL desde la migración 0043, pero esta inserción nunca
+      // se actualizó para poblarlo -- toda venta con tasa de terminal
+      // (o sea, casi cualquier venta real) fallaba con un 500. Mientras
+      // SIAT3000 no esté conectado (Fase 3, RF-010), se crea un registro
+      // LOCAL en estado 'pendiente' -- uno por compra (RN-004: una orden
+      // no genera más de una tasa), compartido por todos los boletos de
+      // esta cooperativa en esta compra. Cuando se conecte el adaptador
+      // real, este mismo registro pasa a llenarse con la respuesta real
+      // de setVentaPasaje en vez de quedar en 'pendiente'.
+      const registroRows = await tx.execute(
+        sql`INSERT INTO registros_tasa_terminal (cooperativa_id, compra_id, clave_idempotencia, solicitud_payload)
+            VALUES (${cooperativaId}, ${pago.compraId}, ${`registro-${pago.compraId}`}, ${JSON.stringify({ nota: 'SIAT3000 no conectado todavía -- registro local generado al confirmar el pago.' })}::jsonb)
+            RETURNING id`,
+      );
+      const registroTasaTerminalId = (registroRows.rows[0] as { id: string }).id;
+
       for (const f of filasTipadas) {
         await tx.execute(
           sql`UPDATE viaje_asientos SET estado = 'ocupado' WHERE id = ${f.viaje_asiento_id}`,
@@ -622,8 +640,8 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
         const puntoOperacionId = (rutaOrigen.rows[0] as { id: string }).id;
 
         await tx.execute(
-          sql`INSERT INTO comprobantes_tasa_terminal (boleto_id, punto_operacion_id, monto, codigo_verificacion)
-              VALUES (${boletoId}, ${puntoOperacionId}, ${f.tasa_terminal}, ${randomUUID()})`,
+          sql`INSERT INTO comprobantes_tasa_terminal (boleto_id, punto_operacion_id, registro_tasa_terminal_id, monto, codigo_verificacion)
+              VALUES (${boletoId}, ${puntoOperacionId}, ${registroTasaTerminalId}, ${f.tasa_terminal}, ${randomUUID()})`,
         );
       }
     });
@@ -726,6 +744,16 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
 
     for (const [cooperativaId, items] of porCooperativa) {
       await ejecutarComoCooperativa(this.dbApp, cooperativaId, async (tx) => {
+        // Ver comentario igual en confirmarPagoManual, arriba -- mismo
+        // hallazgo real: registro local en 'pendiente', uno por compra
+        // (RN-004), compartido por todos los boletos de esta cooperativa.
+        const registroRows = await tx.execute(
+          sql`INSERT INTO registros_tasa_terminal (cooperativa_id, compra_id, clave_idempotencia, solicitud_payload)
+              VALUES (${cooperativaId}, ${compraId}, ${`registro-${compraId}`}, ${JSON.stringify({ nota: 'SIAT3000 no conectado todavía -- registro local generado al confirmar el pago.' })}::jsonb)
+              RETURNING id`,
+        );
+        const registroTasaTerminalId = (registroRows.rows[0] as { id: string }).id;
+
         for (const item of items) {
           const asientoRows = await tx.execute(
             sql`SELECT id FROM viaje_asientos WHERE viaje_id = ${item.viajeId} AND numero_asiento = ${item.numeroAsiento}`,
@@ -823,8 +851,8 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
           });
 
           await tx.execute(
-            sql`INSERT INTO comprobantes_tasa_terminal (boleto_id, punto_operacion_id, monto, codigo_verificacion)
-                VALUES (${boletoId}, ${puntoOperacionId}, ${item.tasaTerminal.toFixed(2)}, ${randomUUID()})`,
+            sql`INSERT INTO comprobantes_tasa_terminal (boleto_id, punto_operacion_id, registro_tasa_terminal_id, monto, codigo_verificacion)
+                VALUES (${boletoId}, ${puntoOperacionId}, ${registroTasaTerminalId}, ${item.tasaTerminal.toFixed(2)}, ${randomUUID()})`,
           );
         }
       });
