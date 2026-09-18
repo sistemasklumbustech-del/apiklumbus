@@ -16,7 +16,9 @@
     "verify:rls": "node verify_rls_isolation.cjs",
     "verify:edge-cases": "node verify_edge_cases.cjs",
     "verify:all": "npm run typecheck && npm run db:generate && npm run verify:migration && npm run verify:rls && npm run verify:edge-cases",
-    "seed:rf017": "tsx seeds/rf017-conciliacion.seed.ts"
+    "seed:rf017": "tsx seeds/rf017-conciliacion.seed.ts",
+    "seed:fase1": "tsx seeds/fase1-demo.seed.ts",
+    "seed:fase1:limpiar": "tsx seeds/fase1-demo.seed.ts --limpiar"
   },
   "keywords": [],
   "author": "",
@@ -29,6 +31,7 @@
     "@electric-sql/pglite": "^0.5.4",
     "@types/node": "^26.1.1",
     "@types/pg": "^8.20.0",
+    "bcryptjs": "^3.0.3",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.19.2",
     "typescript": "^7.0.2"
