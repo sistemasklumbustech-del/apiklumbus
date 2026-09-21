@@ -13,6 +13,7 @@ import {
 import { AdminService } from '../../aplicacion/admin/admin.service';
 import {
   CrearCooperativaDto,
+  CambiarEstadoCooperativaDto,
   CrearPuntoOperacionDto,
   ActualizarPuntoOperacionDto,
   ActualizarIvaNacionalDto,
@@ -55,6 +56,25 @@ export class AdminController {
   @Get('cooperativas')
   async listarCooperativas() {
     return this.admin.listarCooperativas();
+  }
+
+  /** RF-035 -- suspender ('suspendida') o reactivar ('aprobada'); ambos roles administrativos, con auditoría. */
+  @Patch('cooperativas/:id/estado')
+  async cambiarEstadoCooperativa(
+    @Param('id') id: string,
+    @Body() dto: CambiarEstadoCooperativaDto,
+    @Request() req: { user: PayloadToken },
+  ) {
+    const resultado = await this.admin.cambiarEstadoCooperativa(
+      id,
+      dto.estado,
+      req.user.sub,
+      dto.motivo,
+    );
+    if (!resultado.ok) {
+      throw new BadRequestException(resultado.motivo);
+    }
+    return { ok: true };
   }
 
   @Post('puntos-operacion')

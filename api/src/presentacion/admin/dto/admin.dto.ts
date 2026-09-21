@@ -46,6 +46,16 @@ class DatosPrimerUsuarioDto {
   nombreCompleto!: string;
 }
 
+/** RF-035 -- suspender ('suspendida') o reactivar ('aprobada') una cooperativa. */
+export class CambiarEstadoCooperativaDto {
+  @IsIn(['aprobada', 'suspendida'])
+  estado!: 'aprobada' | 'suspendida';
+
+  @IsOptional()
+  @IsString()
+  motivo?: string;
+}
+
 export class CrearCooperativaDto {
   @ValidateNested()
   @Type(() => DatosCooperativaDto)

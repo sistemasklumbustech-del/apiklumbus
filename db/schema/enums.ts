@@ -156,6 +156,9 @@ export const accionAuditoriaEnum = pgEnum('accion_auditoria', [
   'cambio_config_referidos',
   // 13-ago-2026, contacto de soporte global -- sin equivalente existente que reutilizar.
   'cambio_contacto_soporte',
+  // 21-sep-2026, RF-035 -- suspender/reactivar cooperativas, con estado anterior/nuevo y motivo en `detalle`.
+  'suspension_cooperativa',
+  'reactivacion_cooperativa',
 ]);
 
 /** RF-COMM-002 — planes comerciales diferenciados. */

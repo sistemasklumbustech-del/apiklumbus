@@ -264,6 +264,20 @@ export interface AdminRepositorio {
    */
   eliminarCooperativa(id: string, eliminadoPorUsuarioId: string): Promise<void>;
 
+  /**
+   * Suspender o reactivar una cooperativa (RF-035). Suspendida = no
+   * aparece en búsquedas ni puede vender (ver el gate en
+   * busqueda.service.ts y validarYCalcularAsientos), pero conserva
+   * todo su historial. Una cooperativa dada de baja no se reactiva
+   * por acá (la baja es irreversible). Deja registro en auditoría.
+   */
+  cambiarEstadoCooperativa(
+    id: string,
+    nuevoEstado: 'aprobada' | 'suspendida',
+    usuarioId: string,
+    motivo?: string,
+  ): Promise<{ ok: true } | { ok: false; motivo: string }>;
+
   /** RF-017 -- una fila cruda por boleto, ver FilaConciliacionCruda. */
   conciliacion(): Promise<FilaConciliacionCruda[]>;
 }

@@ -708,6 +708,63 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
     `);
   }
 
+  async cambiarEstadoCooperativa(
+    id: string,
+    nuevoEstado: 'aprobada' | 'suspendida',
+    usuarioId: string,
+    motivo?: string,
+  ): Promise<{ ok: true } | { ok: false; motivo: string }> {
+    return this.db.transaction(async (tx) => {
+      const [actual] = await tx
+        .select({ estado: cooperativas.estado })
+        .from(cooperativas)
+        .where(eq(cooperativas.id, id));
+      if (!actual) {
+        return { ok: false as const, motivo: 'Esa cooperativa no existe.' };
+      }
+      if (actual.estado === 'dada_de_baja') {
+        return {
+          ok: false as const,
+          motivo: 'Esta cooperativa está dada de baja -- la baja es irreversible.',
+        };
+      }
+      if (actual.estado === nuevoEstado) {
+        return {
+          ok: false as const,
+          motivo: `Esta cooperativa ya está ${nuevoEstado === 'aprobada' ? 'habilitada' : 'suspendida'}.`,
+        };
+      }
+      if (nuevoEstado === 'suspendida' && actual.estado !== 'aprobada') {
+        return {
+          ok: false as const,
+          motivo: 'Solo se puede suspender una cooperativa habilitada.',
+        };
+      }
+
+      await tx
+        .update(cooperativas)
+        .set({ estado: nuevoEstado, actualizadoEn: new Date() })
+        .where(eq(cooperativas.id, id));
+
+      const accion =
+        nuevoEstado === 'suspendida'
+          ? 'suspension_cooperativa'
+          : actual.estado === 'pendiente_revision'
+            ? 'aprobacion_cooperativa'
+            : 'reactivacion_cooperativa';
+      const detalle = JSON.stringify({
+        antes: actual.estado,
+        despues: nuevoEstado,
+        motivo: motivo ?? null,
+      });
+      await tx.execute(sql`
+        INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle)
+        VALUES (${accion}, ${usuarioId}, 'cooperativa', ${id}, ${detalle}::jsonb)
+      `);
+      return { ok: true as const };
+    });
+  }
+
   /**
    * RF-017 -- una fila por boleto. `pago` se resuelve con LATERAL en vez
    * de un LEFT JOIN plano porque una compra puede tener más de un intento

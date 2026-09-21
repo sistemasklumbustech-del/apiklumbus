@@ -191,6 +191,15 @@ export class AdminService {
     return this.admin.eliminarCooperativa(id, eliminadoPorUsuarioId);
   }
 
+  cambiarEstadoCooperativa(
+    id: string,
+    nuevoEstado: 'aprobada' | 'suspendida',
+    usuarioId: string,
+    motivo?: string,
+  ) {
+    return this.admin.cambiarEstadoCooperativa(id, nuevoEstado, usuarioId, motivo);
+  }
+
   async conciliacion() {
     const filas = await this.admin.conciliacion();
     return filas.map((fila) => ({
