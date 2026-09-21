@@ -9,7 +9,9 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
+  MaxLength,
   Min,
   MinLength,
   ValidateNested,
@@ -316,6 +318,44 @@ export class ActualizarPerfilDto {
 export class CambiarUnidadViajeDto {
   @IsString()
   nuevaUnidadId!: string;
+}
+
+/** Historial de ventas (una fila por boleto) -- filtros y paginacion, todos opcionales. */
+export class ConsultarVentasDto {
+  /** Fecha de venta desde, YYYY-MM-DD (hora de Ecuador). */
+  @IsOptional()
+  @Matches(/^d{4}-d{2}-d{2}$/, { message: "desde debe tener formato YYYY-MM-DD." })
+  desde?: string;
+
+  @IsOptional()
+  @Matches(/^d{4}-d{2}-d{2}$/, { message: "hasta debe tener formato YYYY-MM-DD." })
+  hasta?: string;
+
+  @IsOptional()
+  @IsIn(["en_linea", "ventanilla"])
+  canal?: "en_linea" | "ventanilla";
+
+  @IsOptional()
+  @IsIn(["vigente", "usado", "cancelado"])
+  estadoBoleto?: "vigente" | "usado" | "cancelado";
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  busqueda?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pagina?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  limite?: number;
 }
 
 /** conductorId null = quitar el conductor asignado al viaje. */

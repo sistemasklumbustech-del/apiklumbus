@@ -31,6 +31,7 @@ import {
   ValidarQrDto,
   CambiarUnidadViajeDto,
   AsignarConductorViajeDto,
+  ConsultarVentasDto,
   EditarViajeDto,
   ActualizarEstadoUnidadDto,
   VerificarMenorDto,
@@ -334,6 +335,29 @@ export class PanelEmpresaController {
    * reemplazo" (investigado y confirmado 22-jul-2026, ver comentario
    * completo en panel-empresa.ports.ts). No toca boletos ni asientos.
    */
+  /**
+   * Historial de boletos vendidos de la cooperativa (una fila por boleto,
+   * con pasajero, QR, canal, vendedor y metodo de pago). El admin ve todo;
+   * el vendedor solo lo que el mismo vendio en ventanilla.
+   */
+  @Roles("admin_cooperativa", "vendedor")
+  @Get("ventas")
+  async listarVentas(
+    @Query() dto: ConsultarVentasDto,
+    @Request() req: { user: PayloadToken },
+  ) {
+    return this.panel.listarVentas(cooperativaDelToken(req.user), {
+      desde: dto.desde,
+      hasta: dto.hasta,
+      canal: dto.canal,
+      estadoBoleto: dto.estadoBoleto,
+      busqueda: dto.busqueda,
+      vendedorUsuarioId: req.user.rol === "vendedor" ? req.user.sub : undefined,
+      pagina: dto.pagina ?? 1,
+      limite: dto.limite ?? 25,
+    });
+  }
+
   /** Asignar, cambiar o quitar (conductorId null) el conductor de un viaje programado. */
   @Roles('admin_cooperativa')
   @Patch('viajes/:viajeId/conductor')

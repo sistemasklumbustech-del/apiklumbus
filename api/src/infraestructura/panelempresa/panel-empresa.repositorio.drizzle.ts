@@ -34,6 +34,8 @@ import type {
   CredencialApiRecienCreada,
   HorarioRutaResumen,
   DatosNuevoHorarioRuta,
+  FiltrosVentas,
+  ResultadoVentas,
 } from '../../dominio/panelempresa/panel-empresa.ports';
 
 /**
@@ -855,6 +857,122 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
           codigoQr: f.codigo_qr,
         };
       });
+    });
+  }
+
+  async listarVentas(
+    cooperativaId: string,
+    filtros: FiltrosVentas,
+  ): Promise<ResultadoVentas> {
+    return ejecutarComoCooperativa(this.db, cooperativaId, async (tx) => {
+      const condiciones = [sql`b.cooperativa_id = ${cooperativaId}`];
+      if (filtros.desde) {
+        condiciones.push(
+          sql`(b.creado_en AT TIME ZONE 'America/Guayaquil')::date >= ${filtros.desde}::date`,
+        );
+      }
+      if (filtros.hasta) {
+        condiciones.push(
+          sql`(b.creado_en AT TIME ZONE 'America/Guayaquil')::date <= ${filtros.hasta}::date`,
+        );
+      }
+      if (filtros.canal) condiciones.push(sql`c.canal = ${filtros.canal}`);
+      if (filtros.estadoBoleto) condiciones.push(sql`b.estado = ${filtros.estadoBoleto}`);
+      if (filtros.vendedorUsuarioId) {
+        condiciones.push(sql`c.vendedor_usuario_id = ${filtros.vendedorUsuarioId}`);
+      }
+      const texto = filtros.busqueda?.trim();
+      if (texto) {
+        const patron = `%${texto}%`;
+        condiciones.push(
+          sql`((pc.nombres || ' ' || pc.apellidos) ILIKE ${patron} OR pc.documento ILIKE ${patron} OR b.codigo_qr ILIKE ${patron})`,
+        );
+      }
+      const donde = sql.join(condiciones, sql` AND `);
+
+      const desdeJoins = sql`
+        FROM boletos b
+        JOIN compras c ON c.id = b.compra_id
+        JOIN pasajeros_compra pc ON pc.id = b.pasajero_compra_id
+        JOIN viaje_asientos va ON va.id = b.viaje_asiento_id
+        JOIN viajes v ON v.id = va.viaje_id
+        JOIN rutas r ON r.id = v.ruta_id
+        JOIN puntos_operacion ori ON ori.id = r.origen_punto_operacion_id
+        JOIN puntos_operacion dest ON dest.id = r.destino_punto_operacion_id
+        LEFT JOIN usuarios vend ON vend.id = c.vendedor_usuario_id
+        LEFT JOIN usuarios comp ON comp.id = c.comprador_usuario_id
+        LEFT JOIN LATERAL (
+          SELECT p.proveedor, p.estado FROM pagos p
+          WHERE p.compra_id = c.id
+          ORDER BY (p.estado = 'aprobado') DESC, p.creado_en DESC
+          LIMIT 1
+        ) pago ON true
+        LEFT JOIN comprobantes_tasa_terminal ct ON ct.boleto_id = b.id
+      `;
+      const totalBoleto = sql`(b.precio_pagado + COALESCE(ct.monto, 0) + b.cargo_plataforma)`;
+
+      const resumenFilas = await tx.execute(sql`
+        SELECT COUNT(*)::int AS total,
+               COUNT(*) FILTER (WHERE b.estado <> 'cancelado')::int AS boletos,
+               COALESCE(SUM(${totalBoleto}) FILTER (WHERE b.estado <> 'cancelado'), 0) AS total_cobrado
+        ${desdeJoins}
+        WHERE ${donde}
+      `);
+      const r = resumenFilas.rows[0] as { total: number; boletos: number; total_cobrado: string };
+
+      const offset = (filtros.pagina - 1) * filtros.limite;
+      const resultado = await tx.execute(sql`
+        SELECT b.id AS boleto_id, b.codigo_qr, b.estado AS estado_boleto, b.creado_en AS fecha_venta,
+               c.canal, vend.nombre_completo AS vendedor_nombre,
+               pc.nombres || ' ' || pc.apellidos AS pasajero_nombre, pc.tipo_documento, pc.documento, pc.tipo_tarifa,
+               COALESCE(c.telefono_contacto, comp.telefono) AS contacto_telefono,
+               COALESCE(c.correo_contacto, comp.correo) AS contacto_correo,
+               COALESCE(r.nombre, ori.ciudad || ' -> ' || dest.ciudad) AS ruta_nombre,
+               v.fecha_salida, v.hora_salida_programada, va.numero_asiento, b.es_vip,
+               pago.proveedor AS metodo_pago, pago.estado AS estado_pago,
+               b.precio_pagado, COALESCE(ct.monto, 0) AS tasa_terminal, b.cargo_plataforma,
+               ${totalBoleto} AS total
+        ${desdeJoins}
+        WHERE ${donde}
+        ORDER BY b.creado_en DESC, b.id
+        LIMIT ${filtros.limite} OFFSET ${offset}
+      `);
+
+      return {
+        filas: resultado.rows.map((fila) => {
+          const f = fila as Record<string, unknown>;
+          const aIso = (v: unknown) => (v instanceof Date ? v.toISOString() : String(v));
+          return {
+            boletoId: String(f.boleto_id),
+            codigoQr: String(f.codigo_qr),
+            estadoBoleto: String(f.estado_boleto),
+            fechaVenta: aIso(f.fecha_venta),
+            canal: String(f.canal),
+            vendedorNombre: (f.vendedor_nombre as string | null) ?? null,
+            pasajeroNombre: String(f.pasajero_nombre),
+            tipoDocumento: String(f.tipo_documento),
+            documento: String(f.documento),
+            tipoTarifa: String(f.tipo_tarifa),
+            contactoTelefono: (f.contacto_telefono as string | null) ?? null,
+            contactoCorreo: (f.contacto_correo as string | null) ?? null,
+            rutaNombre: String(f.ruta_nombre),
+            fechaSalida: String(f.fecha_salida),
+            horaSalida: aIso(f.hora_salida_programada),
+            numeroAsiento: String(f.numero_asiento),
+            esVip: Boolean(f.es_vip),
+            metodoPago: (f.metodo_pago as string | null) ?? null,
+            estadoPago: (f.estado_pago as string | null) ?? null,
+            precioPagado: Number(f.precio_pagado),
+            tasaTerminal: Number(f.tasa_terminal),
+            cargoPlataforma: Number(f.cargo_plataforma),
+            total: Number(f.total),
+          };
+        }),
+        total: r.total,
+        resumen: { boletos: r.boletos, totalCobrado: Number(r.total_cobrado) },
+        pagina: filtros.pagina,
+        limite: filtros.limite,
+      };
     });
   }
 

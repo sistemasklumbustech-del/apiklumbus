@@ -524,6 +524,57 @@ export interface ConductorResumen {
   telefono: string | null;
 }
 
+/** Filtros del historial de ventas de la cooperativa (una fila por boleto). */
+export interface FiltrosVentas {
+  /** Fecha de venta, YYYY-MM-DD, hora de Ecuador. */
+  desde?: string;
+  hasta?: string;
+  canal?: 'en_linea' | 'ventanilla';
+  estadoBoleto?: 'vigente' | 'usado' | 'cancelado';
+  /** Nombre, documento o código QR del pasajero. */
+  busqueda?: string;
+  /** Si viene, solo las ventas de ventanilla hechas por ese usuario (rol vendedor). */
+  vendedorUsuarioId?: string;
+  pagina: number;
+  limite: number;
+}
+
+export interface FilaVenta {
+  boletoId: string;
+  codigoQr: string;
+  estadoBoleto: string;
+  fechaVenta: string;
+  canal: string;
+  vendedorNombre: string | null;
+  pasajeroNombre: string;
+  tipoDocumento: string;
+  documento: string;
+  tipoTarifa: string;
+  contactoTelefono: string | null;
+  contactoCorreo: string | null;
+  rutaNombre: string;
+  fechaSalida: string;
+  horaSalida: string;
+  numeroAsiento: string;
+  esVip: boolean;
+  metodoPago: string | null;
+  estadoPago: string | null;
+  precioPagado: number;
+  tasaTerminal: number;
+  cargoPlataforma: number;
+  total: number;
+}
+
+export interface ResultadoVentas {
+  filas: FilaVenta[];
+  /** Total de filas que cumplen los filtros (no solo las de esta página). */
+  total: number;
+  /** Boletos no cancelados y lo cobrado por ellos, sobre TODOS los que cumplen los filtros. */
+  resumen: { boletos: number; totalCobrado: number };
+  pagina: number;
+  limite: number;
+}
+
 export interface PasajeroDeViaje {
   numeroAsiento: string;
   nombreCompleto: string;
@@ -767,6 +818,11 @@ export interface PanelEmpresaRepositorio {
     cooperativaId: string,
     viajeId: string,
   ): Promise<PasajeroDeViaje[]>;
+  /** Historial de boletos vendidos, con pasajero, QR, canal, vendedor y método de pago -- base para informes. */
+  listarVentas(
+    cooperativaId: string,
+    filtros: FiltrosVentas,
+  ): Promise<ResultadoVentas>;
   crearUsuarioStaff(
     cooperativaId: string,
     datos: DatosNuevoUsuarioStaff,

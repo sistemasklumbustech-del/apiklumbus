@@ -7,6 +7,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { ReferidosService } from '../referidos/referidos.service';
 import type {
   PanelEmpresaRepositorio,
+  FiltrosVentas,
   DatosNuevoTipoVehiculo,
   DatosNuevaUnidad,
   DatosEditarTipoVehiculo,
@@ -277,6 +278,10 @@ export class PanelEmpresaService {
 
   listarPasajerosDeViaje(cooperativaId: string, viajeId: string) {
     return this.panel.listarPasajerosDeViaje(cooperativaId, viajeId);
+  }
+
+  listarVentas(cooperativaId: string, filtros: FiltrosVentas) {
+    return this.panel.listarVentas(cooperativaId, filtros);
   }
 
   crearUsuarioStaff(cooperativaId: string, datos: DatosNuevoUsuarioStaff) {
