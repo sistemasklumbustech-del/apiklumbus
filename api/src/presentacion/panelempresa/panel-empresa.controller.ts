@@ -30,6 +30,7 @@ import {
   ImportarDatosDto,
   ValidarQrDto,
   CambiarUnidadViajeDto,
+  AsignarConductorViajeDto,
   EditarViajeDto,
   ActualizarEstadoUnidadDto,
   VerificarMenorDto,
@@ -333,6 +334,25 @@ export class PanelEmpresaController {
    * reemplazo" (investigado y confirmado 22-jul-2026, ver comentario
    * completo en panel-empresa.ports.ts). No toca boletos ni asientos.
    */
+  /** Asignar, cambiar o quitar (conductorId null) el conductor de un viaje programado. */
+  @Roles('admin_cooperativa')
+  @Patch('viajes/:viajeId/conductor')
+  async asignarConductorViaje(
+    @Param('viajeId') viajeId: string,
+    @Body() dto: AsignarConductorViajeDto,
+    @Request() req: { user: PayloadToken },
+  ) {
+    const resultado = await this.panel.asignarConductorViaje(
+      cooperativaDelToken(req.user),
+      viajeId,
+      dto.conductorId ?? null,
+    );
+    if (!resultado.ok) {
+      throw new BadRequestException(resultado.motivo);
+    }
+    return resultado;
+  }
+
   @Roles('admin_cooperativa')
   @Patch('viajes/:viajeId/unidad')
   async cambiarUnidadViaje(

@@ -312,6 +312,8 @@ export interface DatosNuevoViaje {
   horaLlegadaEstimada?: string;
   recargoVip?: number;
   precioBase: number;
+  /** Opcional: asignar conductor no debe bloquear publicar un viaje (ver viajes.conductorId). */
+  conductorId?: string;
 }
 
 export interface DatosNuevoUsuarioStaff {
@@ -501,6 +503,8 @@ export interface ViajeResumen {
   estado: string;
   unidadPlaca: string;
   tipoVehiculoNombre: string;
+  conductorId: string | null;
+  conductorNombre: string | null;
 }
 
 export interface UsuarioStaffResumen {
@@ -722,6 +726,18 @@ export interface PanelEmpresaRepositorio {
     cooperativaId: string,
     viajeId: string,
     nuevaUnidadId: string,
+  ): Promise<{ ok: true } | { ok: false; motivo: string }>;
+
+  /**
+   * Asignar, cambiar o quitar (null) el conductor de un viaje programado.
+   * Hallazgo real (21-sep-2026): viajes.conductorId existía en el esquema
+   * pero ninguna pantalla ni endpoint permitía llenarlo. No toca boletos
+   * ni asientos.
+   */
+  asignarConductorViaje(
+    cooperativaId: string,
+    viajeId: string,
+    conductorId: string | null,
   ): Promise<{ ok: true } | { ok: false; motivo: string }>;
 
   /**

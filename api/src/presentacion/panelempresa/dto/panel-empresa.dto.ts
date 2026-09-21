@@ -8,6 +8,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   Min,
   MinLength,
@@ -172,6 +173,11 @@ export class CrearViajeDto {
   @IsNumber()
   @Min(0)
   precioBase!: number;
+
+  /** Opcional: no bloquea publicar el viaje, se puede asignar despues. */
+  @IsOptional()
+  @IsUUID()
+  conductorId?: string;
 }
 
 export class CrearUsuarioStaffDto {
@@ -310,6 +316,13 @@ export class ActualizarPerfilDto {
 export class CambiarUnidadViajeDto {
   @IsString()
   nuevaUnidadId!: string;
+}
+
+/** conductorId null = quitar el conductor asignado al viaje. */
+export class AsignarConductorViajeDto {
+  @IsOptional()
+  @IsUUID()
+  conductorId?: string | null;
 }
 
 /** Editar hora/precio de un viaje sin boletos vendidos — hallazgo cerrado 22-jul-2026. */

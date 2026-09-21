@@ -259,6 +259,14 @@ export class PanelEmpresaService {
     return resultado;
   }
 
+  asignarConductorViaje(
+    cooperativaId: string,
+    viajeId: string,
+    conductorId: string | null,
+  ) {
+    return this.panel.asignarConductorViaje(cooperativaId, viajeId, conductorId);
+  }
+
   editarViaje(
     cooperativaId: string,
     viajeId: string,

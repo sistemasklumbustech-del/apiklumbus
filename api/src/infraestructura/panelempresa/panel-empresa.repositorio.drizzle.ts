@@ -434,10 +434,23 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
     datos: DatosNuevoViaje,
   ): Promise<{ id: string }> {
     return ejecutarComoCooperativa(this.db, cooperativaId, async (tx) => {
+      // La FK de conductor_id no respeta RLS: se valida aca que el
+      // conductor sea de esta cooperativa (RLS deja ver solo los propios).
+      if (datos.conductorId) {
+        const conductor = await tx.execute(sql`
+          SELECT activo FROM conductores WHERE id = ${datos.conductorId} AND cooperativa_id = ${cooperativaId}
+        `);
+        const fila = conductor.rows[0] as { activo: boolean } | undefined;
+        if (!fila || !fila.activo) {
+          throw new BadRequestException(
+            'Ese conductor no existe, esta inactivo o no pertenece a tu cooperativa.',
+          );
+        }
+      }
       const filas = await tx.execute(sql`
-        INSERT INTO viajes (cooperativa_id, ruta_id, unidad_id, fecha_salida, hora_salida_programada, hora_llegada_estimada, recargo_vip, precio_base, estado)
+        INSERT INTO viajes (cooperativa_id, ruta_id, unidad_id, conductor_id, fecha_salida, hora_salida_programada, hora_llegada_estimada, recargo_vip, precio_base, estado)
         VALUES (
-          ${cooperativaId}, ${datos.rutaId}, ${datos.unidadId}, ${datos.fechaSalida}, ${datos.horaSalidaProgramada}, ${datos.horaLlegadaEstimada ?? null},
+          ${cooperativaId}, ${datos.rutaId}, ${datos.unidadId}, ${datos.conductorId ?? null}, ${datos.fechaSalida}, ${datos.horaSalidaProgramada}, ${datos.horaLlegadaEstimada ?? null},
           COALESCE(${datos.recargoVip ?? null}, (SELECT recargo_vip_default FROM cooperativas WHERE id = ${cooperativaId}), 0),
           ${datos.precioBase}, 'programado'
         )
@@ -664,6 +677,52 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
     });
   }
 
+  async asignarConductorViaje(
+    cooperativaId: string,
+    viajeId: string,
+    conductorId: string | null,
+  ): Promise<{ ok: true } | { ok: false; motivo: string }> {
+    return ejecutarComoCooperativa(this.db, cooperativaId, async (tx) => {
+      const viajeFilas = await tx.execute(sql`
+        SELECT estado FROM viajes WHERE id = ${viajeId} AND cooperativa_id = ${cooperativaId}
+      `);
+      const viaje = viajeFilas.rows[0] as { estado: string } | undefined;
+      if (!viaje) {
+        return { ok: false as const, motivo: 'Este viaje no existe.' };
+      }
+      if (viaje.estado !== 'programado') {
+        return {
+          ok: false as const,
+          motivo: `Este viaje ya está "${viaje.estado}" — solo se puede cambiar el conductor de un viaje programado.`,
+        };
+      }
+
+      if (conductorId) {
+        const conductorFilas = await tx.execute(sql`
+          SELECT activo FROM conductores WHERE id = ${conductorId} AND cooperativa_id = ${cooperativaId}
+        `);
+        const conductor = conductorFilas.rows[0] as { activo: boolean } | undefined;
+        if (!conductor) {
+          return {
+            ok: false as const,
+            motivo: 'Ese conductor no existe o no pertenece a tu cooperativa.',
+          };
+        }
+        if (!conductor.activo) {
+          return {
+            ok: false as const,
+            motivo: 'Ese conductor está inactivo — actívalo primero en Personal.',
+          };
+        }
+      }
+
+      await tx.execute(sql`
+        UPDATE viajes SET conductor_id = ${conductorId} WHERE id = ${viajeId}
+      `);
+      return { ok: true as const };
+    });
+  }
+
   async editarViaje(
     cooperativaId: string,
     viajeId: string,
@@ -718,13 +777,15 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
       const resultado = await tx.execute(sql`
         SELECT v.id, v.fecha_salida, v.hora_salida_programada, v.precio_base, v.estado,
                r.nombre AS ruta_nombre_raw, ori.ciudad AS origen_ciudad, dest.ciudad AS destino_ciudad,
-               u.placa AS unidad_placa, tv.nombre AS tipo_vehiculo_nombre
+               u.placa AS unidad_placa, tv.nombre AS tipo_vehiculo_nombre,
+               v.conductor_id, c.nombre_completo AS conductor_nombre
         FROM viajes v
         JOIN rutas r ON r.id = v.ruta_id
         JOIN puntos_operacion ori ON ori.id = r.origen_punto_operacion_id
         JOIN puntos_operacion dest ON dest.id = r.destino_punto_operacion_id
         JOIN unidades u ON u.id = v.unidad_id
         JOIN tipos_vehiculo tv ON tv.id = u.tipo_vehiculo_id
+        LEFT JOIN conductores c ON c.id = v.conductor_id
         WHERE v.cooperativa_id = ${cooperativaId}
         ORDER BY v.fecha_salida DESC, v.hora_salida_programada DESC
       `);
@@ -740,6 +801,8 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
           destino_ciudad: string;
           unidad_placa: string;
           tipo_vehiculo_nombre: string;
+          conductor_id: string | null;
+          conductor_nombre: string | null;
         };
         return {
           id: f.id,
@@ -753,6 +816,8 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
           estado: f.estado,
           unidadPlaca: f.unidad_placa,
           tipoVehiculoNombre: f.tipo_vehiculo_nombre,
+          conductorId: f.conductor_id,
+          conductorNombre: f.conductor_nombre,
         };
       });
     });
