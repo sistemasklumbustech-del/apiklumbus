@@ -1116,6 +1116,17 @@ export class CheckoutService {
     tipoMetodoPago: 'efectivo' | 'tarjeta_fisica' | 'transferencia_bancaria',
     telefonoContacto?: string,
     correoContacto?: string,
+    /**
+     * Respaldo opcional para transferencia (22-sep-2026) -- el vendedor
+     * sigue pudiendo confirmar al instante sin nada de esto (mismo
+     * criterio de siempre: "ya tengo el dinero en mano"), pero si
+     * anota el número de referencia y/o deja el comprobante, queda
+     * guardado en el pago para poder auditarlo después -- visible en
+     * el historial de Ventas, no en Pagos pendientes (nunca bloquea la
+     * venta ni pasa por revisión de un admin).
+     */
+    referenciaTransferencia?: string,
+    comprobanteUrl?: string,
   ) {
     const desglose = await this.compras.validarYCalcularAsientos(
       pasajeros,
@@ -1144,8 +1155,10 @@ export class CheckoutService {
 
     const { boletos } = await this.compras.confirmarPago(
       compraId,
-      `venta-ventanilla-${vendedorUsuarioId}`,
+      referenciaTransferencia?.trim() ||
+        `venta-ventanilla-${vendedorUsuarioId}`,
       mapeo,
+      comprobanteUrl,
     );
 
     const cargoPlataformaTotal = desglose.reduce((acc, d) => acc + d.cargoPlataforma, 0);
@@ -1175,11 +1188,32 @@ export class CheckoutService {
   }
 
   /**
+   * Sube el comprobante de una venta de ventanilla ANTES de confirmarla
+   * (22-sep-2026) -- a diferencia de subirComprobantePago, no hay
+   * compraId todavía porque venderEnVentanilla crea y confirma la
+   * compra en un solo paso. Solo guarda el archivo y devuelve su URL;
+   * el vendedor la manda junto con el resto de la venta.
+   */
+  async subirComprobanteVentanilla(buffer: Buffer, nombreOriginal: string) {
+    const { url } = await this.almacenamiento.guardarImagen(
+      buffer,
+      nombreOriginal,
+      'comprobantes-pago',
+    );
+    return { comprobanteUrl: url };
+  }
+
+  /**
    * Lado cooperativa del pago manual (29-jul-2026): ve los pagos con
    * comprobante subido, esperando confirmación.
    */
   async listarPagosPendientesConfirmacion(cooperativaId: string) {
     return this.compras.listarPagosPendientesConfirmacion(cooperativaId);
+  }
+
+  /** Historial de pagos manuales ya confirmados/rechazados (22-sep-2026) -- ver PagoManualHistorialItem. */
+  async listarHistorialPagosManuales(cooperativaId: string) {
+    return this.compras.listarHistorialPagosManuales(cooperativaId);
   }
 
   async confirmarPagoManual(

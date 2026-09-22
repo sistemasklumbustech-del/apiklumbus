@@ -902,7 +902,17 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
         LEFT JOIN usuarios vend ON vend.id = c.vendedor_usuario_id
         LEFT JOIN usuarios comp ON comp.id = c.comprador_usuario_id
         LEFT JOIN LATERAL (
-          SELECT p.proveedor, p.estado FROM pagos p
+          SELECT p.proveedor, p.estado, p.comprobante_url,
+                 -- Solo se expone cuando es un dato real que alguien
+                 -- escribió (22-sep-2026) -- las referencias internas
+                 -- generadas por el sistema (venta-ventanilla-*,
+                 -- reprogramacion-*) no le sirven a nadie en pantalla.
+                 CASE
+                   WHEN p.referencia_externa LIKE 'venta-ventanilla-%' THEN NULL
+                   WHEN p.referencia_externa LIKE 'reprogramacion-%' THEN NULL
+                   ELSE p.referencia_externa
+                 END AS referencia_externa
+          FROM pagos p
           WHERE p.compra_id = c.id
           ORDER BY (p.estado = 'aprobado') DESC, p.creado_en DESC
           LIMIT 1
@@ -930,6 +940,7 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
                COALESCE(r.nombre, ori.ciudad || ' -> ' || dest.ciudad) AS ruta_nombre,
                v.fecha_salida, v.hora_salida_programada, va.numero_asiento, b.es_vip,
                pago.proveedor AS metodo_pago, pago.estado AS estado_pago,
+               pago.referencia_externa AS referencia_pago, pago.comprobante_url AS comprobante_pago_url,
                b.precio_pagado, COALESCE(ct.monto, 0) AS tasa_terminal, b.cargo_plataforma,
                ${totalBoleto} AS total
         ${desdeJoins}
@@ -962,6 +973,8 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
             esVip: Boolean(f.es_vip),
             metodoPago: (f.metodo_pago as string | null) ?? null,
             estadoPago: (f.estado_pago as string | null) ?? null,
+            referenciaPago: (f.referencia_pago as string | null) ?? null,
+            comprobantePagoUrl: (f.comprobante_pago_url as string | null) ?? null,
             precioPagado: Number(f.precio_pagado),
             tasaTerminal: Number(f.tasa_terminal),
             cargoPlataforma: Number(f.cargo_plataforma),

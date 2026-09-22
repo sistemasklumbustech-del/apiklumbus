@@ -559,6 +559,9 @@ export interface FilaVenta {
   esVip: boolean;
   metodoPago: string | null;
   estadoPago: string | null;
+  /** Respaldo opcional de la venta (22-sep-2026) -- solo se llena cuando el vendedor lo dejó al vender por transferencia. */
+  referenciaPago: string | null;
+  comprobantePagoUrl: string | null;
   precioPagado: number;
   tasaTerminal: number;
   cargoPlataforma: number;

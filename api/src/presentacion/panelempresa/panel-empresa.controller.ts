@@ -744,6 +744,35 @@ export class PanelEmpresaController {
       dto.tipoMetodoPago,
       dto.telefonoContacto,
       dto.correoContacto,
+      dto.referenciaTransferencia,
+      dto.comprobanteUrl,
+    );
+  }
+
+  /**
+   * Respaldo opcional de una venta de ventanilla pagada por
+   * transferencia (22-sep-2026) -- sube la foto/captura ANTES de
+   * vender (todavía no existe compraId) y devuelve su URL, para
+   * incluirla en el body de POST ventanilla/vender. Nunca es
+   * obligatorio: el vendedor puede confirmar la venta sin esto.
+   */
+  @Roles('admin_cooperativa', 'vendedor')
+  @Post('ventanilla/comprobante')
+  @UseInterceptors(
+    FileInterceptor('comprobante', { limits: { fileSize: 5 * 1024 * 1024 } }),
+  )
+  async subirComprobanteVentanilla(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('No se recibió ningún archivo.');
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
+      throw new BadRequestException(
+        'Solo se permiten imágenes JPG, PNG o WEBP.',
+      );
+    }
+    return this.checkout.subirComprobanteVentanilla(
+      file.buffer,
+      file.originalname,
     );
   }
 
@@ -757,6 +786,15 @@ export class PanelEmpresaController {
   @Get('pagos-pendientes')
   async listarPagosPendientes(@Request() req: { user: PayloadToken }) {
     return this.checkout.listarPagosPendientesConfirmacion(cooperativaDelToken(req.user));
+  }
+
+  /** Historial de pagos manuales ya resueltos (22-sep-2026) -- da uso real a esta pantalla fuera de la bandeja de tareas. */
+  @Roles('admin_cooperativa')
+  @Get('pagos-historial')
+  async listarHistorialPagos(@Request() req: { user: PayloadToken }) {
+    return this.checkout.listarHistorialPagosManuales(
+      cooperativaDelToken(req.user),
+    );
   }
 
   @Roles('admin_cooperativa')

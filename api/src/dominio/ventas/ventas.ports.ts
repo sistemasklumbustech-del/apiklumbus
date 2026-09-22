@@ -142,6 +142,30 @@ export interface PagoManualPendiente {
   creadoEn: string;
 }
 
+/**
+ * Historial de pagos manuales ya resueltos (22-sep-2026) -- ítem
+ * pedido por el director: "Pagos pendientes" solo mostraba la
+ * bandeja de tareas, sin dejar rastro de qué se confirmó o rechazó
+ * después. Solo pagos que pasaron por revisión real de un
+ * admin_cooperativa (confirmadoPorUsuarioId no nulo) -- una venta de
+ * ventanilla confirmada al instante por el propio vendedor no cuenta
+ * como "revisión", así que no aparece aquí (queda en el historial de
+ * Ventas, con su propia referencia/comprobante si el vendedor la dejó).
+ */
+export interface PagoManualHistorialItem {
+  pagoId: string;
+  compraId: string;
+  proveedor: string;
+  monto: number;
+  estado: 'aprobado' | 'rechazado';
+  comprobanteUrl: string | null;
+  compradorNombre: string;
+  confirmadoPorNombre: string | null;
+  motivoRechazo: string | null;
+  creadoEn: string;
+  resueltoEn: string;
+}
+
 /** Solicitud de factura del pasaje (29-jul-2026) -- ver solicitudes-factura.ts. */
 export interface SolicitudFactura {
   id: string;
@@ -242,6 +266,12 @@ export interface CompraRepositorio {
     cooperativaId: string,
   ): Promise<PagoManualPendiente[]>;
 
+  /** Últimos pagos manuales ya confirmados o rechazados, más recientes primero. */
+  listarHistorialPagosManuales(
+    cooperativaId: string,
+    limite?: number,
+  ): Promise<PagoManualHistorialItem[]>;
+
   /** Atómico -- mismo patrón que los demás flujos de dinero de este proyecto. */
   confirmarPagoManual(
     pagoId: string,
@@ -269,6 +299,12 @@ export interface CompraRepositorio {
     compraId: string,
     referenciaExterna: string,
     mapeo: MapeoAsientoPasajero[],
+    /**
+     * Comprobante de respaldo (18-sep-2026) -- solo lo usa la venta de
+     * ventanilla cuando el vendedor decide dejarlo, ya que ese flujo
+     * confirma al instante y nunca pasa por adjuntarComprobante().
+     */
+    comprobanteUrl?: string,
   ): Promise<{ boletos: BoletoEmitido[] }>;
 
   /** Registra el rechazo sin tocar los asientos (su hold expira solo). */

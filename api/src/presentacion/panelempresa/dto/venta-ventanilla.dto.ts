@@ -1,4 +1,13 @@
-import { ArrayMinSize, IsArray, IsIn, IsOptional, IsString, Matches, ValidateNested } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsIn,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { PasajeroCheckoutDto } from '../../ventas/dto/crear-compra.dto';
 
@@ -36,4 +45,16 @@ export class VenderEnVentanillaDto {
   @IsOptional()
   @IsString()
   correoContacto?: string;
+
+  /** Respaldo opcional para "transferencia" (22-sep-2026) -- nunca bloquea la venta, ver comentario en checkout.service.ts. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  referenciaTransferencia?: string;
+
+  /** URL ya subida vía POST /coop/ventanilla/comprobante. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  comprobanteUrl?: string;
 }

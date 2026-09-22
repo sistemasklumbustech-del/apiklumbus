@@ -42,6 +42,7 @@ import type {
   BoletoEmitido,
   ReciboCompra,
   PagoManualPendiente,
+  PagoManualHistorialItem,
   SolicitudFactura,
 } from '../../dominio/ventas/ventas.ports';
 import {
@@ -539,6 +540,70 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
     });
   }
 
+  async listarHistorialPagosManuales(
+    cooperativaId: string,
+    limite = 30,
+  ): Promise<PagoManualHistorialItem[]> {
+    // Mismo criterio de acceso que listarPagosPendientesConfirmacion
+    // (dbPublico + filtro explícito por cooperativa, ver su comentario).
+    // confirmado_por_usuario_id IS NOT NULL es lo que distingue un pago
+    // que pasó por revisión real de este historial -- una venta de
+    // ventanilla confirmada al instante nunca lo setea.
+    const resultado = await this.dbPublico.execute(sql`
+      SELECT DISTINCT ON (pg.id)
+        pg.id AS pago_id, pg.compra_id, pg.proveedor, pg.monto, pg.estado,
+        pg.comprobante_url, pg.creado_en, pg.actualizado_en,
+        pg.respuesta_proveedor->>'motivo' AS motivo_rechazo,
+        u.nombre_completo AS comprador_nombre,
+        conf.nombre_completo AS confirmado_por_nombre
+      FROM pagos pg
+      INNER JOIN compras c ON c.id = pg.compra_id
+      LEFT JOIN usuarios u ON u.id = c.comprador_usuario_id
+      LEFT JOIN usuarios conf ON conf.id = pg.confirmado_por_usuario_id
+      INNER JOIN pasajeros_compra pc ON pc.compra_id = c.id
+      INNER JOIN viaje_asientos va ON va.id = pc.viaje_asiento_id
+      INNER JOIN viajes v ON v.id = va.viaje_id
+      WHERE v.cooperativa_id = ${cooperativaId}
+        AND pg.estado IN ('aprobado', 'rechazado')
+        AND pg.confirmado_por_usuario_id IS NOT NULL
+        AND pg.proveedor != 'simulado'
+      ORDER BY pg.id, pg.actualizado_en DESC
+      LIMIT ${limite}
+    `);
+    return resultado.rows
+      .map((fila) => {
+        const f = fila as {
+          pago_id: string;
+          compra_id: string;
+          proveedor: string;
+          monto: string;
+          estado: 'aprobado' | 'rechazado';
+          comprobante_url: string | null;
+          creado_en: Date | string;
+          actualizado_en: Date | string;
+          motivo_rechazo: string | null;
+          comprador_nombre: string | null;
+          confirmado_por_nombre: string | null;
+        };
+        const aIso = (v: Date | string) =>
+          v instanceof Date ? v.toISOString() : new Date(v).toISOString();
+        return {
+          pagoId: f.pago_id,
+          compraId: f.compra_id,
+          proveedor: f.proveedor,
+          monto: Number(f.monto),
+          estado: f.estado,
+          comprobanteUrl: f.comprobante_url,
+          compradorNombre: f.comprador_nombre ?? 'Venta de ventanilla',
+          confirmadoPorNombre: f.confirmado_por_nombre,
+          motivoRechazo: f.motivo_rechazo,
+          creadoEn: aIso(f.creado_en),
+          resueltoEn: aIso(f.actualizado_en),
+        };
+      })
+      .sort((a, b) => b.resueltoEn.localeCompare(a.resueltoEn));
+  }
+
   async confirmarPagoManual(
     pagoId: string,
     cooperativaId: string,
@@ -728,6 +793,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
     compraId: string,
     referenciaExterna: string,
     mapeo: MapeoAsientoPasajero[],
+    comprobanteUrl?: string,
   ): Promise<{ boletos: BoletoEmitido[] }> {
     // Agrupar por cooperativa: cada grupo se escribe en su propia
     // transacción con SET LOCAL — una compra puede, en teoría, cubrir
@@ -860,7 +926,11 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
 
     await this.dbPublico
       .update(pagos)
-      .set({ estado: 'aprobado', referenciaExterna })
+      .set({
+        estado: 'aprobado',
+        referenciaExterna,
+        ...(comprobanteUrl ? { comprobanteUrl } : {}),
+      })
       .where(eq(pagos.compraId, compraId));
 
     await this.transicionar(compraId, 'pagada', {
