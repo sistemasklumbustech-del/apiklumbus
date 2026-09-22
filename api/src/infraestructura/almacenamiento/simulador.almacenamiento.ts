@@ -7,6 +7,11 @@ import type {
   ArchivoSubido,
 } from '../../dominio/auth/auth.ports';
 
+// Mismo patron que URL_FRONTEND en resend.notificador.ts -- hardcodeado
+// a proposito, no via env, siguiendo la convencion ya establecida en
+// este proyecto para URLs publicas conocidas.
+const URL_API_PUBLICA = 'https://api.klumbus.tech';
+
 /**
  * Almacenamiento simulado -- mismo criterio que simulador.pasarela.ts y
  * SimuladorNotificador: guarda el archivo REAL en disco local (no lo
@@ -14,11 +19,15 @@ import type {
  * reemplaza por la integracion real al final, sin tocar nada mas del
  * sistema.
  *
- * NOTA IMPORTANTE, sin ocultarla: para que la URL devuelta sea
- * visitable de verdad en un navegador, falta configurar en main.ts que
- * el servidor sirva esta carpeta como archivos estaticos
- * (app.useStaticAssets o similar). Ese es el paso inmediato siguiente
- * a este.
+ * app.useStaticAssets ya esta configurado en main.ts (sirve esta
+ * carpeta bajo /uploads) -- eso hace que la URL sea visitable de
+ * verdad. Hallazgo real (22-sep-2026, comprobante de ventanilla
+ * probado por el director): faltaba el otro lado del problema -- esta
+ * URL se devolvia RELATIVA ("/uploads/..."), y el navegador la resolvia
+ * contra el origen de la pagina que la muestra (klumbustech.com, el
+ * frontend), no contra la API que de verdad sirve el archivo -> 404.
+ * Se antepone el origen de la API para que la URL sea absoluta y
+ * funcione sin importar desde donde se muestre.
  */
 @Injectable()
 export class SimuladorAlmacenamiento implements AlmacenamientoArchivos {
@@ -39,7 +48,7 @@ export class SimuladorAlmacenamiento implements AlmacenamientoArchivos {
 
     await writeFile(rutaCompleta, buffer);
 
-    const url = `/uploads/${carpeta}/${nombreArchivo}`;
+    const url = `${URL_API_PUBLICA}/uploads/${carpeta}/${nombreArchivo}`;
     this.logger.log(`[SIMULADO] Archivo guardado en disco -> ${rutaCompleta}, URL: ${url}`);
 
     return { url, nombreArchivo };
