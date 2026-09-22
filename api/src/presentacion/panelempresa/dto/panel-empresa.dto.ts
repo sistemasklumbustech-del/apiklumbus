@@ -358,6 +358,52 @@ export class ConsultarVentasDto {
   limite?: number;
 }
 
+/**
+ * Paginación real (22-sep-2026) -- antes GET /coop/viajes devolvía
+ * TODOS los viajes de la cooperativa en una sola llamada, sin ningún
+ * filtro. Mismo patrón que ConsultarVentasDto.
+ */
+export class ConsultarViajesDto {
+  /** Fecha de salida desde, YYYY-MM-DD. */
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: "desde debe tener formato YYYY-MM-DD.",
+  })
+  desde?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: "hasta debe tener formato YYYY-MM-DD.",
+  })
+  hasta?: string;
+
+  @IsOptional()
+  @IsIn(["programado", "en_curso", "finalizado", "cancelado"])
+  estado?: "programado" | "en_curso" | "finalizado" | "cancelado";
+
+  @IsOptional()
+  @IsUUID()
+  rutaId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  busqueda?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pagina?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limite?: number;
+}
+
 /** conductorId null = quitar el conductor asignado al viaje. */
 export class AsignarConductorViajeDto {
   @IsOptional()

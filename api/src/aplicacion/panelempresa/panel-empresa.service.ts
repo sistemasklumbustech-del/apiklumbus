@@ -8,6 +8,7 @@ import { ReferidosService } from '../referidos/referidos.service';
 import type {
   PanelEmpresaRepositorio,
   FiltrosVentas,
+  FiltrosViajes,
   DatosNuevoTipoVehiculo,
   DatosNuevaUnidad,
   DatosEditarTipoVehiculo,
@@ -166,8 +167,8 @@ export class PanelEmpresaService {
     return this.panel.crearViaje(cooperativaId, datos);
   }
 
-  listarViajes(cooperativaId: string) {
-    return this.panel.listarViajes(cooperativaId);
+  listarViajes(cooperativaId: string, filtros: FiltrosViajes) {
+    return this.panel.listarViajes(cooperativaId, filtros);
   }
 
   /**

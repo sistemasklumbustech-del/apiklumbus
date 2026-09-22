@@ -1,6 +1,6 @@
 import { Inject, Injectable, BadRequestException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
-import { sql, eq } from 'drizzle-orm';
+import { sql, eq, SQL } from 'drizzle-orm';
 import { cooperativas } from '@columbus/db';
 import { DRIZZLE_DB } from '../database/database.module';
 import type { DrizzleDb } from '../database/database.provider';
@@ -28,7 +28,8 @@ import type {
   RutaResumen,
   TipoVehiculoResumen,
   UnidadResumen,
-  ViajeResumen,
+  FiltrosViajes,
+  ResultadoViajes,
   MetodoPagoCooperativa,
   CredencialApiCooperativa,
   CredencialApiRecienCreada,
@@ -774,13 +775,37 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
     });
   }
 
-  async listarViajes(cooperativaId: string): Promise<ViajeResumen[]> {
+  async listarViajes(
+    cooperativaId: string,
+    filtros: FiltrosViajes,
+  ): Promise<ResultadoViajes> {
     return ejecutarComoCooperativa(this.db, cooperativaId, async (tx) => {
-      const resultado = await tx.execute(sql`
-        SELECT v.id, v.fecha_salida, v.hora_salida_programada, v.precio_base, v.estado,
-               r.nombre AS ruta_nombre_raw, ori.ciudad AS origen_ciudad, dest.ciudad AS destino_ciudad,
-               u.placa AS unidad_placa, tv.nombre AS tipo_vehiculo_nombre,
-               v.conductor_id, c.nombre_completo AS conductor_nombre
+      // Paginación real (22-sep-2026) -- antes esta consulta no tenía
+      // ningún WHERE aparte de la cooperativa, ni LIMIT/OFFSET: traía
+      // absolutamente todos los viajes programados alguna vez.
+      const condiciones: SQL[] = [sql`v.cooperativa_id = ${cooperativaId}`];
+      if (filtros.desde) {
+        condiciones.push(sql`v.fecha_salida >= ${filtros.desde}::date`);
+      }
+      if (filtros.hasta) {
+        condiciones.push(sql`v.fecha_salida <= ${filtros.hasta}::date`);
+      }
+      if (filtros.estado) {
+        condiciones.push(sql`v.estado = ${filtros.estado}`);
+      }
+      if (filtros.rutaId) {
+        condiciones.push(sql`v.ruta_id = ${filtros.rutaId}`);
+      }
+      const texto = filtros.busqueda?.trim();
+      if (texto) {
+        const patron = `%${texto}%`;
+        condiciones.push(
+          sql`(r.nombre ILIKE ${patron} OR u.placa ILIKE ${patron} OR c.nombre_completo ILIKE ${patron})`,
+        );
+      }
+      const donde = sql.join(condiciones, sql` AND `);
+
+      const desdeJoins = sql`
         FROM viajes v
         JOIN rutas r ON r.id = v.ruta_id
         JOIN puntos_operacion ori ON ori.id = r.origen_punto_operacion_id
@@ -788,10 +813,25 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
         JOIN unidades u ON u.id = v.unidad_id
         JOIN tipos_vehiculo tv ON tv.id = u.tipo_vehiculo_id
         LEFT JOIN conductores c ON c.id = v.conductor_id
-        WHERE v.cooperativa_id = ${cooperativaId}
-        ORDER BY v.fecha_salida DESC, v.hora_salida_programada DESC
+      `;
+
+      const totalFilas = await tx.execute(sql`
+        SELECT COUNT(*)::int AS total ${desdeJoins} WHERE ${donde}
       `);
-      return resultado.rows.map((fila) => {
+      const total = (totalFilas.rows[0] as { total: number }).total;
+
+      const offset = (filtros.pagina - 1) * filtros.limite;
+      const resultado = await tx.execute(sql`
+        SELECT v.id, v.fecha_salida, v.hora_salida_programada, v.precio_base, v.estado,
+               r.nombre AS ruta_nombre_raw, ori.ciudad AS origen_ciudad, dest.ciudad AS destino_ciudad,
+               u.placa AS unidad_placa, tv.nombre AS tipo_vehiculo_nombre,
+               v.conductor_id, c.nombre_completo AS conductor_nombre
+        ${desdeJoins}
+        WHERE ${donde}
+        ORDER BY v.fecha_salida DESC, v.hora_salida_programada DESC
+        LIMIT ${filtros.limite} OFFSET ${offset}
+      `);
+      const filas = resultado.rows.map((fila) => {
         const f = fila as {
           id: string;
           fecha_salida: string;
@@ -822,6 +862,7 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
           conductorNombre: f.conductor_nombre,
         };
       });
+      return { filas, total, pagina: filtros.pagina, limite: filtros.limite };
     });
   }
 

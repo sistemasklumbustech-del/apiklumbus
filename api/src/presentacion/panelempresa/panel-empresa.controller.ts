@@ -32,6 +32,7 @@ import {
   CambiarUnidadViajeDto,
   AsignarConductorViajeDto,
   ConsultarVentasDto,
+  ConsultarViajesDto,
   EditarViajeDto,
   ActualizarEstadoUnidadDto,
   VerificarMenorDto,
@@ -249,8 +250,19 @@ export class PanelEmpresaController {
 
   @Roles('admin_cooperativa', 'vendedor')
   @Get('viajes')
-  async listarViajes(@Request() req: { user: PayloadToken }) {
-    return this.panel.listarViajes(cooperativaDelToken(req.user));
+  async listarViajes(
+    @Query() dto: ConsultarViajesDto,
+    @Request() req: { user: PayloadToken },
+  ) {
+    return this.panel.listarViajes(cooperativaDelToken(req.user), {
+      desde: dto.desde,
+      hasta: dto.hasta,
+      estado: dto.estado,
+      rutaId: dto.rutaId,
+      busqueda: dto.busqueda,
+      pagina: dto.pagina ?? 1,
+      limite: dto.limite ?? 25,
+    });
   }
 
   /** Cancelar un viaje completo (cascada a sus boletos) â€” hallazgo cerrado 22-jul-2026. Solo el admin, no el vendedor. */

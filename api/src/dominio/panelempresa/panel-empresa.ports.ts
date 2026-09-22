@@ -507,6 +507,24 @@ export interface ViajeResumen {
   conductorNombre: string | null;
 }
 
+/** Paginación real (22-sep-2026) -- antes listarViajes devolvía todo sin filtros. */
+export interface FiltrosViajes {
+  desde?: string;
+  hasta?: string;
+  estado?: string;
+  rutaId?: string;
+  busqueda?: string;
+  pagina: number;
+  limite: number;
+}
+
+export interface ResultadoViajes {
+  filas: ViajeResumen[];
+  total: number;
+  pagina: number;
+  limite: number;
+}
+
 export interface UsuarioStaffResumen {
   id: string;
   correo: string;
@@ -713,7 +731,10 @@ export interface PanelEmpresaRepositorio {
     datos: DatosNuevoViaje,
   ): Promise<{ id: string }>;
   /** Viajes programados de la cooperativa — el mismo listado que RF-BUS termina mostrando al pasajero, pero visto desde adentro. */
-  listarViajes(cooperativaId: string): Promise<ViajeResumen[]>;
+  listarViajes(
+    cooperativaId: string,
+    filtros: FiltrosViajes,
+  ): Promise<ResultadoViajes>;
 
   /**
    * Cancelar un viaje completo — hallazgo real 22-jul-2026: antes no
