@@ -26,6 +26,8 @@ import type {
   AdministradorResumen,
   FilaConciliacionCruda,
   FiltrosConciliacionSql,
+  FiltrosCooperativas,
+  ResultadoCooperativas,
 } from '../../dominio/admin/admin.ports';
 
 /**
@@ -120,6 +122,71 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
         estado: cooperativas.estado,
       })
       .from(cooperativas);
+  }
+
+  async buscarCooperativas(
+    filtros: FiltrosCooperativas,
+  ): Promise<ResultadoCooperativas> {
+    const condiciones: SQL[] = [];
+    if (filtros.estado) {
+      condiciones.push(sql`estado = ${filtros.estado}`);
+    }
+    const texto = filtros.busqueda?.trim();
+    if (texto) {
+      const patron = `%${texto}%`;
+      condiciones.push(
+        sql`(nombre_comercial ILIKE ${patron} OR razon_social ILIKE ${patron} OR ruc ILIKE ${patron} OR contacto_nombre ILIKE ${patron} OR contacto_correo ILIKE ${patron})`,
+      );
+    }
+    const donde =
+      condiciones.length > 0
+        ? sql`WHERE ${sql.join(condiciones, sql` AND `)}`
+        : sql``;
+
+    const totalFilas = await this.db.execute(sql`
+      SELECT COUNT(*)::int AS total FROM cooperativas ${donde}
+    `);
+    const total = (totalFilas.rows[0] as { total: number }).total;
+
+    const offset = (filtros.pagina - 1) * filtros.limite;
+    const resultado = await this.db.execute(sql`
+      SELECT id, ruc, razon_social, nombre_comercial, estado,
+             contacto_nombre, contacto_correo, contacto_telefono, fecha_afiliacion
+      FROM cooperativas
+      ${donde}
+      ORDER BY nombre_comercial ASC
+      LIMIT ${filtros.limite} OFFSET ${offset}
+    `);
+    const filas = resultado.rows.map((fila) => {
+      const f = fila as {
+        id: string;
+        ruc: string;
+        razon_social: string;
+        nombre_comercial: string;
+        estado: string;
+        contacto_nombre: string | null;
+        contacto_correo: string | null;
+        contacto_telefono: string | null;
+        fecha_afiliacion: Date | string | null;
+      };
+      return {
+        id: f.id,
+        ruc: f.ruc,
+        razonSocial: f.razon_social,
+        nombreComercial: f.nombre_comercial,
+        estado: f.estado,
+        contactoNombre: f.contacto_nombre,
+        contactoCorreo: f.contacto_correo,
+        contactoTelefono: f.contacto_telefono,
+        fechaAfiliacion:
+          f.fecha_afiliacion === null
+            ? null
+            : f.fecha_afiliacion instanceof Date
+              ? f.fecha_afiliacion.toISOString()
+              : new Date(f.fecha_afiliacion).toISOString(),
+      };
+    });
+    return { filas, total, pagina: filtros.pagina, limite: filtros.limite };
   }
 
   async listarPuntosOperacion() {

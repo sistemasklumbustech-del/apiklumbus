@@ -25,6 +25,7 @@ import {
   ActualizarModoIvaBoletoDto,
   CrearAdministradorDto,
   ConciliacionQueryDto,
+  BuscarCooperativasDto,
 } from './dto/admin.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -58,6 +59,17 @@ export class AdminController {
   @Get('cooperativas')
   async listarCooperativas() {
     return this.admin.listarCooperativas();
+  }
+
+  /** Tabla de gestión con filtros y paginación real -- ver el comentario de BuscarCooperativasDto. */
+  @Get('cooperativas/buscar')
+  async buscarCooperativas(@Query() dto: BuscarCooperativasDto) {
+    return this.admin.buscarCooperativas({
+      estado: dto.estado,
+      busqueda: dto.busqueda,
+      pagina: dto.pagina ?? 1,
+      limite: dto.limite ?? 25,
+    });
   }
 
   /** RF-035 -- suspender ('suspendida') o reactivar ('aprobada'); ambos roles administrativos, con auditoría. */

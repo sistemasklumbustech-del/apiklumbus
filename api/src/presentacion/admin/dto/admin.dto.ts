@@ -276,3 +276,33 @@ export class ConciliacionQueryDto {
   @Max(200)
   limite?: number;
 }
+
+/**
+ * Paginación real (22-sep-2026) -- distinta de GET /admin/cooperativas
+ * (sin filtros, se deja intacta porque la usan los selectores de
+ * Conciliación y Liquidaciones, que necesitan la lista completa sin
+ * paginar). Esta es para la tabla de gestión, en /admin/cooperativas/buscar.
+ */
+export class BuscarCooperativasDto {
+  @IsOptional()
+  @IsIn(['pendiente_revision', 'aprobada', 'suspendida', 'dada_de_baja'])
+  estado?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  busqueda?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pagina?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limite?: number;
+}

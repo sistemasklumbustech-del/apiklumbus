@@ -131,6 +131,40 @@ export interface ResultadoConciliacion {
   limite: number;
 }
 
+/**
+ * Búsqueda paginada de cooperativas para la tabla de gestión (22-sep-2026)
+ * -- distinta de listarCooperativas() (abajo), que se deja intacta
+ * porque la usan los selectores de cooperativa de Conciliación y
+ * Liquidaciones: esos necesitan la lista completa sin paginar (no
+ * tendría sentido un <select> paginado), mientras que la tabla de
+ * gestión sí necesita filtrar y paginar de verdad.
+ */
+export interface CooperativaDetalle {
+  id: string;
+  ruc: string;
+  razonSocial: string;
+  nombreComercial: string;
+  estado: string;
+  contactoNombre: string | null;
+  contactoCorreo: string | null;
+  contactoTelefono: string | null;
+  fechaAfiliacion: string | null;
+}
+
+export interface FiltrosCooperativas {
+  estado?: string;
+  busqueda?: string;
+  pagina: number;
+  limite: number;
+}
+
+export interface ResultadoCooperativas {
+  filas: CooperativaDetalle[];
+  total: number;
+  pagina: number;
+  limite: number;
+}
+
 export interface AdminRepositorio {
   crearCooperativaConPrimerUsuarioAtomico(
     datosCooperativa: DatosNuevaCooperativa,
@@ -140,6 +174,10 @@ export interface AdminRepositorio {
   listarCooperativas(): Promise<
     { id: string; nombreComercial: string; estado: string }[]
   >;
+
+  buscarCooperativas(
+    filtros: FiltrosCooperativas,
+  ): Promise<ResultadoCooperativas>;
 
   listarPuntosOperacion(): Promise<
     {
