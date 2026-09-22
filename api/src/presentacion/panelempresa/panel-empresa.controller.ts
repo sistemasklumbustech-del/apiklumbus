@@ -18,6 +18,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { PanelEmpresaService } from '../../aplicacion/panelempresa/panel-empresa.service';
 import { CheckoutService } from '../../aplicacion/ventas/checkout.service';
 import { LiquidacionesService } from '../../aplicacion/liquidaciones/liquidaciones.service';
+import { ConsultarMisLiquidacionesDto } from '../liquidaciones/dto/liquidaciones.dto';
 import {
   CrearTipoVehiculoDto,
   CrearUnidadDto,
@@ -900,8 +901,18 @@ export class PanelEmpresaController {
    */
   @Roles('admin_cooperativa')
   @Get('liquidaciones')
-  async listarMisLiquidaciones(@Request() req: { user: PayloadToken }) {
-    return this.liquidaciones.listar(cooperativaDelToken(req.user));
+  async listarMisLiquidaciones(
+    @Query() dto: ConsultarMisLiquidacionesDto,
+    @Request() req: { user: PayloadToken },
+  ) {
+    return this.liquidaciones.listar({
+      cooperativaId: cooperativaDelToken(req.user),
+      estado: dto.estado,
+      desde: dto.desde,
+      hasta: dto.hasta,
+      pagina: dto.pagina ?? 1,
+      limite: dto.limite ?? 25,
+    });
   }
 
   /**

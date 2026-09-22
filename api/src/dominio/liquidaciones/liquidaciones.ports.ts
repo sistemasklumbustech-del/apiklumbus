@@ -33,6 +33,23 @@ export interface ErrorGenerarLiquidacion {
   motivo: string;
 }
 
+/** Paginación real (22-sep-2026) -- antes listarLiquidacionesCooperativa devolvía todo sin filtros. */
+export interface FiltrosLiquidaciones {
+  cooperativaId?: string;
+  estado?: 'pendiente' | 'pagada';
+  desde?: string;
+  hasta?: string;
+  pagina: number;
+  limite: number;
+}
+
+export interface ResultadoLiquidaciones {
+  filas: LiquidacionCooperativa[];
+  total: number;
+  pagina: number;
+  limite: number;
+}
+
 export interface LiquidacionesRepositorio {
   /**
    * Calcula y crea la liquidación de una cooperativa para un período.
@@ -63,8 +80,8 @@ export interface LiquidacionesRepositorio {
   ): Promise<ResultadoGenerarLiquidacion | ErrorGenerarLiquidacion>;
 
   listarLiquidacionesCooperativa(
-    cooperativaId?: string,
-  ): Promise<LiquidacionCooperativa[]>;
+    filtros: FiltrosLiquidaciones,
+  ): Promise<ResultadoLiquidaciones>;
 
   marcarLiquidacionPagada(
     id: string,

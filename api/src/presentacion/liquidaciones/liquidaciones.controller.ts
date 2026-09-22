@@ -1,6 +1,9 @@
 import { Body, Controller, Get, Post, Patch, Param, Query, UseGuards } from '@nestjs/common';
 import { LiquidacionesService } from '../../aplicacion/liquidaciones/liquidaciones.service';
-import { GenerarLiquidacionDto } from './dto/liquidaciones.dto';
+import {
+  GenerarLiquidacionDto,
+  ConsultarLiquidacionesDto,
+} from './dto/liquidaciones.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard, Roles } from '../auth/guards/roles.guard';
 
@@ -26,8 +29,15 @@ export class LiquidacionesController {
   }
 
   @Get()
-  async listar(@Query('cooperativaId') cooperativaId?: string) {
-    return this.liquidaciones.listar(cooperativaId);
+  async listar(@Query() dto: ConsultarLiquidacionesDto) {
+    return this.liquidaciones.listar({
+      cooperativaId: dto.cooperativaId,
+      estado: dto.estado,
+      desde: dto.desde,
+      hasta: dto.hasta,
+      pagina: dto.pagina ?? 1,
+      limite: dto.limite ?? 25,
+    });
   }
 
   @Patch(':id/pagar')

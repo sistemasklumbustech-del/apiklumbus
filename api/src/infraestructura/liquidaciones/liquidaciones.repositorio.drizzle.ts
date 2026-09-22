@@ -1,5 +1,5 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { sql } from 'drizzle-orm';
+import { sql, SQL } from 'drizzle-orm';
 import { DRIZZLE_DB_PUBLICO } from '../database/database.module';
 import type { DrizzleDb } from '../database/database.provider';
 import type {
@@ -7,6 +7,8 @@ import type {
   LiquidacionCooperativa,
   ResultadoGenerarLiquidacion,
   ErrorGenerarLiquidacion,
+  FiltrosLiquidaciones,
+  ResultadoLiquidaciones,
 } from '../../dominio/liquidaciones/liquidaciones.ports';
 
 function aFechaISO(valor: unknown): string {
@@ -120,18 +122,46 @@ export class LiquidacionesRepositorioDrizzle implements LiquidacionesRepositorio
   }
 
   async listarLiquidacionesCooperativa(
-    cooperativaId?: string,
-  ): Promise<LiquidacionCooperativa[]> {
-    const resultado = cooperativaId
-      ? await this.db.execute(sql`
-          SELECT * FROM liquidaciones_cooperativa
-          WHERE cooperativa_id = ${cooperativaId}
-          ORDER BY periodo_inicio DESC
-        `)
-      : await this.db.execute(sql`
-          SELECT * FROM liquidaciones_cooperativa ORDER BY periodo_inicio DESC
-        `);
-    return resultado.rows.map((fila) => mapearFila(fila as Record<string, unknown>));
+    filtros: FiltrosLiquidaciones,
+  ): Promise<ResultadoLiquidaciones> {
+    // Paginación real (22-sep-2026) -- antes esta consulta no tenía
+    // WHERE aparte de cooperativaId (opcional), ni LIMIT/OFFSET.
+    const condiciones: SQL[] = [];
+    if (filtros.cooperativaId) {
+      condiciones.push(sql`cooperativa_id = ${filtros.cooperativaId}`);
+    }
+    if (filtros.estado) {
+      condiciones.push(sql`estado = ${filtros.estado}`);
+    }
+    if (filtros.desde) {
+      condiciones.push(sql`periodo_inicio >= ${filtros.desde}::date`);
+    }
+    if (filtros.hasta) {
+      condiciones.push(sql`periodo_inicio <= ${filtros.hasta}::date`);
+    }
+    const donde =
+      condiciones.length > 0
+        ? sql`WHERE ${sql.join(condiciones, sql` AND `)}`
+        : sql``;
+
+    const totalFilas = await this.db.execute(sql`
+      SELECT COUNT(*)::int AS total FROM liquidaciones_cooperativa ${donde}
+    `);
+    const total = (totalFilas.rows[0] as { total: number }).total;
+
+    const offset = (filtros.pagina - 1) * filtros.limite;
+    const resultado = await this.db.execute(sql`
+      SELECT * FROM liquidaciones_cooperativa
+      ${donde}
+      ORDER BY periodo_inicio DESC
+      LIMIT ${filtros.limite} OFFSET ${offset}
+    `);
+    return {
+      filas: resultado.rows.map((fila) => mapearFila(fila as Record<string, unknown>)),
+      total,
+      pagina: filtros.pagina,
+      limite: filtros.limite,
+    };
   }
 
   async marcarLiquidacionPagada(

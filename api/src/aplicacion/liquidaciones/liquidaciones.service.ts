@@ -1,5 +1,8 @@
 import { Inject, Injectable, BadRequestException } from '@nestjs/common';
-import type { LiquidacionesRepositorio } from '../../dominio/liquidaciones/liquidaciones.ports';
+import type {
+  LiquidacionesRepositorio,
+  FiltrosLiquidaciones,
+} from '../../dominio/liquidaciones/liquidaciones.ports';
 
 export const LIQUIDACIONES_REPOSITORIO = 'LIQUIDACIONES_REPOSITORIO';
 
@@ -27,8 +30,8 @@ export class LiquidacionesService {
     return resultado.liquidacion;
   }
 
-  listar(cooperativaId?: string) {
-    return this.liquidaciones.listarLiquidacionesCooperativa(cooperativaId);
+  listar(filtros: FiltrosLiquidaciones) {
+    return this.liquidaciones.listarLiquidacionesCooperativa(filtros);
   }
 
   async marcarPagada(id: string) {
