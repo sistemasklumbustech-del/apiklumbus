@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
-import type { NotificadorEmail } from '../../dominio/auth/auth.ports';
+import type { AdjuntoCorreo, NotificadorEmail } from '../../dominio/auth/auth.ports';
 
 const REMITENTE = 'Klumbus <notificaciones@klumbustech.com>';
 const URL_FRONTEND = 'https://klumbustech.com';
@@ -42,7 +42,7 @@ export class ResendNotificador implements NotificadorEmail {
 
   async enviarResetPassword(correo: string, tokenPlano: string): Promise<void> {
     const link = `${URL_FRONTEND}/restablecer-password?token=${tokenPlano}`;
-    await this.resend.emails.send({
+    await this.enviar({
       from: REMITENTE,
       to: correo,
       subject: 'Recupera tu contraseña — Klumbus',
@@ -65,14 +65,38 @@ export class ResendNotificador implements NotificadorEmail {
     });
   }
 
+  /**
+   * El SDK de Resend NO lanza excepciones ante un rechazo de la API: devuelve
+   * { error }. Sin este chequeo, un envio fallido quedaba registrado como
+   * "enviado".
+   */
+  private async enviar(
+    payload: Parameters<Resend['emails']['send']>[0],
+  ): Promise<void> {
+    const { error } = await this.resend.emails.send(payload);
+    if (error) {
+      throw new Error(`Resend rechazó el envío: ${error.name} — ${error.message}`);
+    }
+  }
+
   async enviarConfirmacionCompra(
     correo: string,
-    detalle: { compraId: string; montoTotal: number; cantidadBoletos: number },
+    detalle: {
+      compraId: string;
+      montoTotal: number;
+      cantidadBoletos: number;
+      tieneCuenta?: boolean;
+    },
+    adjuntos?: AdjuntoCorreo[],
   ): Promise<void> {
-    await this.resend.emails.send({
+    const hayAdjuntos = !!adjuntos && adjuntos.length > 0;
+    await this.enviar({
       from: REMITENTE,
       to: correo,
-      subject: 'Confirmación de tu compra — Klumbus',
+      subject: 'Tu boleto — Klumbus',
+      attachments: hayAdjuntos
+        ? adjuntos.map((a) => ({ filename: a.nombreArchivo, content: a.contenido }))
+        : undefined,
       html: plantillaBase(
         '¡Compra confirmada!',
         `
@@ -84,11 +108,20 @@ export class ResendNotificador implements NotificadorEmail {
             <tr><td style="padding:6px 0; color:#6b7280;">Boletos</td><td style="padding:6px 0; text-align:right;">${detalle.cantidadBoletos}</td></tr>
             <tr><td style="padding:6px 0; color:#6b7280; font-weight:700;">Total pagado</td><td style="padding:6px 0; text-align:right; font-weight:700;">$${detalle.montoTotal.toFixed(2)}</td></tr>
           </table>
-          <p style="margin: 24px 0;">
+          ${
+            hayAdjuntos
+              ? `<p style="font-size: 14px; line-height: 1.6;">Adjuntamos tu${detalle.cantidadBoletos > 1 ? 's' : ''} boleto${detalle.cantidadBoletos > 1 ? 's' : ''} en PDF, con el código QR. Presentá el QR (en el celular o impreso) al abordar.</p>`
+              : ''
+          }
+          ${
+            detalle.tieneCuenta === false
+              ? ''
+              : `<p style="margin: 24px 0;">
             <a href="${URL_FRONTEND}/mis-boletos" style="background:#2451c4; color:#fff; padding:12px 24px; border-radius:8px; text-decoration:none; font-weight:600; font-size:14px; display:inline-block;">
               Ver mis boletos
             </a>
-          </p>
+          </p>`
+          }
         `,
       ),
     });
@@ -99,7 +132,7 @@ export class ResendNotificador implements NotificadorEmail {
     tokenPlano: string,
   ): Promise<void> {
     const link = `${URL_FRONTEND}/verificar-correo?token=${tokenPlano}`;
-    await this.resend.emails.send({
+    await this.enviar({
       from: REMITENTE,
       to: correo,
       subject: 'Verificá tu correo — Klumbus',

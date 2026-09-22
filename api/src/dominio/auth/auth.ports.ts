@@ -226,12 +226,25 @@ export interface UsuarioRepositorio {
   ): Promise<boolean>;
 }
 
+/** Archivo adjunto de un correo (ej. boleto en PDF). */
+export interface AdjuntoCorreo {
+  nombreArchivo: string;
+  contenido: Buffer;
+}
+
 export interface NotificadorEmail {
   enviarResetPassword(correo: string, tokenPlano: string): Promise<void>;
 
   enviarConfirmacionCompra(
     correo: string,
-    detalle: { compraId: string; montoTotal: number; cantidadBoletos: number },
+    detalle: {
+      compraId: string;
+      montoTotal: number;
+      cantidadBoletos: number;
+      /** Solo si el comprador tiene cuenta: habilita el enlace a "Mis boletos". */
+      tieneCuenta?: boolean;
+    },
+    adjuntos?: AdjuntoCorreo[],
   ): Promise<void>;
 
   enviarVerificacionCorreo(correo: string, tokenPlano: string): Promise<void>;

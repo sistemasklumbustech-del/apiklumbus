@@ -22,6 +22,7 @@ export class SimuladorNotificador implements NotificadorEmail {
   async enviarConfirmacionCompra(
     correo: string,
     detalle: { compraId: string; montoTotal: number; cantidadBoletos: number },
+    _adjuntos?: unknown[],
   ): Promise<void> {
     this.logger.log(
       `[SIMULADO] Confirmacion de compra para ${correo} -> compra ${detalle.compraId}, ${detalle.cantidadBoletos} boleto(s), total $${detalle.montoTotal.toFixed(2)}`,

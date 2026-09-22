@@ -377,11 +377,7 @@ export class CheckoutService {
       (acc, m) => acc + m.precioPagado + m.tasaTerminal + m.cargoPlataforma,
       0,
     );
-    await this.compras.notificarCompraConfirmada(
-      compraId,
-      montoTotalNotif,
-      boletos.length,
-    );
+    await this.enviarBoletosPorCorreo(compraId);
 
     // Modelo B (02-ago-2026) -- un webhook por cada cooperativa
     // involucrada en esta compra (una compra puede mezclar boletos de
@@ -463,7 +459,40 @@ export class CheckoutService {
    * recortable abajo con lo esencial para abordar. Investigado contra
    * redBus/FlixBus antes de diseñar (ver DOCUMENTO_MAESTRO.md).
    */
-  async generarPdfBoleto(boletoId: string, usuarioId: string): Promise<Buffer> {
+  /**
+   * Envia por correo la confirmacion + los boletos en PDF (con QR) al
+   * correo de contacto de la compra. Se usa en toda venta confirmada:
+   * en linea, ventanilla y pago manual. Nunca lanza: una falla de correo
+   * no debe revertir ni romper una venta ya confirmada.
+   */
+  async enviarBoletosPorCorreo(compraId: string): Promise<void> {
+    try {
+      const resumen = await this.compras.obtenerResumenNotificacionCompra(compraId);
+      if (!resumen) return;
+      const adjuntos: { nombreArchivo: string; contenido: Buffer }[] = [];
+      for (const boletoId of resumen.boletoIds) {
+        try {
+          const contenido = await this.generarPdfBoleto(boletoId, null);
+          adjuntos.push({
+            nombreArchivo: `boleto-${boletoId.slice(0, 8)}.pdf`,
+            contenido,
+          });
+        } catch {
+          // Si un PDF falla, el correo sale igual con los demas.
+        }
+      }
+      await this.compras.notificarCompraConfirmada(
+        compraId,
+        resumen.montoTotal,
+        resumen.boletoIds.length,
+        adjuntos,
+      );
+    } catch {
+      // Silencioso a proposito -- ver el comentario del metodo.
+    }
+  }
+
+  async generarPdfBoleto(boletoId: string, usuarioId: string | null): Promise<Buffer> {
     const datos = await this.compras.obtenerDatosBoletoParaPdf(
       boletoId,
       usuarioId,
@@ -1122,6 +1151,8 @@ export class CheckoutService {
     const cargoPlataformaTotal = desglose.reduce((acc, d) => acc + d.cargoPlataforma, 0);
     await this.generarFacturaPlataforma(compraId, cargoPlataformaTotal);
 
+    await this.enviarBoletosPorCorreo(compraId);
+
     return { compraId, boletos };
   }
 
@@ -1176,6 +1207,8 @@ export class CheckoutService {
       evento: 'venta_creada',
       compraId: resultado.compraId,
     });
+
+    await this.enviarBoletosPorCorreo(resultado.compraId);
 
     return { ok: true };
   }

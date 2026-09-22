@@ -1368,21 +1368,43 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
     };
   }
 
+  async obtenerResumenNotificacionCompra(
+    compraId: string,
+  ): Promise<{ montoTotal: number; boletoIds: string[] } | null> {
+    const filas = await this.dbPublico.execute(sql`
+      SELECT c.monto_total,
+             COALESCE(
+               (SELECT array_agg(b.id::text ORDER BY b.creado_en) FROM boletos b WHERE b.compra_id = c.id),
+               ARRAY[]::text[]
+             ) AS boleto_ids
+      FROM compras c
+      WHERE c.id = ${compraId}
+    `);
+    const fila = filas.rows[0] as { monto_total: string; boleto_ids: string[] } | undefined;
+    if (!fila) return null;
+    return { montoTotal: Number(fila.monto_total), boletoIds: fila.boleto_ids };
+  }
+
   async notificarCompraConfirmada(
     compraId: string,
     montoTotal: number,
     cantidadBoletos: number,
+    adjuntos?: { nombreArchivo: string; contenido: Buffer }[],
   ): Promise<void> {
+    // El correo de contacto declarado en la compra tiene prioridad: una
+    // venta de ventanilla o de invitado no tiene cuenta, y aun con cuenta
+    // el pasajero puede haber indicado otro correo para recibir el boleto.
     const filas = await this.dbPublico.execute(sql`
-      SELECT u.correo
+      SELECT COALESCE(NULLIF(c.correo_contacto, ''), u.correo) AS correo,
+             (c.comprador_usuario_id IS NOT NULL) AS tiene_cuenta
       FROM compras c
-      JOIN usuarios u ON u.id = c.comprador_usuario_id
+      LEFT JOIN usuarios u ON u.id = c.comprador_usuario_id
       WHERE c.id = ${compraId}
     `);
-    const fila = filas.rows[0] as { correo: string } | undefined;
+    const fila = filas.rows[0] as { correo: string | null; tiene_cuenta: boolean } | undefined;
 
-    // RF-CHECK-006 -- una venta de ventanilla puede no tener comprador
-    // con cuenta propia; sin correo, no hay a quien notificar.
+    // Sin correo (ni de contacto ni de cuenta) no hay a quien notificar
+    // por esta via; el boleto se entrega impreso o por otro canal.
     if (!fila?.correo) return;
 
     const [notif] = await this.dbPublico
@@ -1397,11 +1419,11 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
       .returning();
 
     try {
-      await this.email.enviarConfirmacionCompra(fila.correo, {
-        compraId,
-        montoTotal,
-        cantidadBoletos,
-      });
+      await this.email.enviarConfirmacionCompra(
+        fila.correo,
+        { compraId, montoTotal, cantidadBoletos, tieneCuenta: fila.tiene_cuenta },
+        adjuntos,
+      );
       await this.dbPublico
         .update(notificaciones)
         .set({ estadoEnvio: 'enviado', enviadoEn: new Date() })
@@ -1449,7 +1471,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
    */
   async obtenerDatosBoletoParaPdf(
     boletoId: string,
-    usuarioId: string,
+    usuarioId: string | null,
   ): Promise<{
     codigoQr: string;
     estado: string;
@@ -1524,7 +1546,11 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
       .leftJoin(unidades, eq(viajes.unidadId, unidades.id))
       .leftJoin(usuarios, eq(compras.compradorUsuarioId, usuarios.id))
       .where(
-        sql`${boletos.id} = ${boletoId} AND ${compras.compradorUsuarioId} = ${usuarioId}`,
+        // usuarioId null = uso interno del sistema (envio del boleto por
+        // correo tras la venta); nunca llega desde un endpoint publico.
+        usuarioId === null
+          ? sql`${boletos.id} = ${boletoId}`
+          : sql`${boletos.id} = ${boletoId} AND ${compras.compradorUsuarioId} = ${usuarioId}`,
       );
 
     if (!fila) return null;

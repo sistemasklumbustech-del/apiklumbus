@@ -418,11 +418,17 @@ export interface CompraRepositorio {
    */
   obtenerContactoSoporte(): Promise<{ correo: string | null; telefono: string | null }>;
 
+  /** Monto total y ids de boletos de una compra, para armar el correo de confirmacion. */
+  obtenerResumenNotificacionCompra(
+    compraId: string,
+  ): Promise<{ montoTotal: number; boletoIds: string[] } | null>;
+
   /** Registra y envia (via NotificadorEmail) la confirmacion de una compra ya aprobada. Nunca lanza -- si falla, queda registrado como fallido, sin afectar la venta. */
   notificarCompraConfirmada(
     compraId: string,
     montoTotal: number,
     cantidadBoletos: number,
+    adjuntos?: { nombreArchivo: string; contenido: Buffer }[],
   ): Promise<void>;
 
   /**
@@ -446,7 +452,7 @@ export interface CompraRepositorio {
    */
   obtenerDatosBoletoParaPdf(
     boletoId: string,
-    usuarioId: string,
+    usuarioId: string | null,
   ): Promise<{
     codigoQr: string;
     estado: string;
