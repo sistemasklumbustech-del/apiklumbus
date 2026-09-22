@@ -159,7 +159,10 @@ export interface PagoManualHistorialItem {
   monto: number;
   estado: 'aprobado' | 'rechazado';
   comprobanteUrl: string | null;
+  /** Solo si es un dato real -- ver el mismo criterio en FilaVenta.referenciaPago. */
+  referenciaPago: string | null;
   compradorNombre: string;
+  /** Admin que lo revisó (pago manual en línea) o vendedor que vendió en ventanilla. */
   confirmadoPorNombre: string | null;
   motivoRechazo: string | null;
   creadoEn: string;

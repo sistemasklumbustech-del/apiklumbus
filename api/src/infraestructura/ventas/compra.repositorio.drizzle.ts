@@ -546,27 +546,49 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
   ): Promise<PagoManualHistorialItem[]> {
     // Mismo criterio de acceso que listarPagosPendientesConfirmacion
     // (dbPublico + filtro explícito por cooperativa, ver su comentario).
-    // confirmado_por_usuario_id IS NOT NULL es lo que distingue un pago
-    // que pasó por revisión real de este historial -- una venta de
-    // ventanilla confirmada al instante nunca lo setea.
+    //
+    // Hallazgo real (22-sep-2026, primera venta de prueba con
+    // respaldo): el filtro original exigía confirmado_por_usuario_id
+    // IS NOT NULL -- eso excluía TODA venta de ventanilla, porque
+    // confirmarPago() (la confirmación instantánea) nunca setea esa
+    // columna, sin importar que el vendedor haya dejado comprobante o
+    // referencia. Ahora entran también esas ventas, mientras tengan
+    // algo real que mostrar (comprobante o una referencia que no sea
+    // el marcador interno) -- una venta de ventanilla sin ningún
+    // respaldo sigue sin aparecer aquí, sería puro ruido.
     const resultado = await this.dbPublico.execute(sql`
       SELECT DISTINCT ON (pg.id)
         pg.id AS pago_id, pg.compra_id, pg.proveedor, pg.monto, pg.estado,
         pg.comprobante_url, pg.creado_en, pg.actualizado_en,
         pg.respuesta_proveedor->>'motivo' AS motivo_rechazo,
-        u.nombre_completo AS comprador_nombre,
-        conf.nombre_completo AS confirmado_por_nombre
+        COALESCE(pc.nombres || ' ' || pc.apellidos, u.nombre_completo) AS comprador_nombre,
+        conf.nombre_completo AS confirmado_por_nombre,
+        vend.nombre_completo AS vendedor_nombre,
+        CASE
+          WHEN pg.referencia_externa LIKE 'venta-ventanilla-%' THEN NULL
+          WHEN pg.referencia_externa LIKE 'reprogramacion-%' THEN NULL
+          ELSE pg.referencia_externa
+        END AS referencia_pago
       FROM pagos pg
       INNER JOIN compras c ON c.id = pg.compra_id
       LEFT JOIN usuarios u ON u.id = c.comprador_usuario_id
       LEFT JOIN usuarios conf ON conf.id = pg.confirmado_por_usuario_id
+      LEFT JOIN usuarios vend ON vend.id = c.vendedor_usuario_id
       INNER JOIN pasajeros_compra pc ON pc.compra_id = c.id
       INNER JOIN viaje_asientos va ON va.id = pc.viaje_asiento_id
       INNER JOIN viajes v ON v.id = va.viaje_id
       WHERE v.cooperativa_id = ${cooperativaId}
         AND pg.estado IN ('aprobado', 'rechazado')
-        AND pg.confirmado_por_usuario_id IS NOT NULL
         AND pg.proveedor != 'simulado'
+        AND (
+          pg.confirmado_por_usuario_id IS NOT NULL
+          OR pg.comprobante_url IS NOT NULL
+          OR (
+            pg.referencia_externa IS NOT NULL
+            AND pg.referencia_externa NOT LIKE 'venta-ventanilla-%'
+            AND pg.referencia_externa NOT LIKE 'reprogramacion-%'
+          )
+        )
       ORDER BY pg.id, pg.actualizado_en DESC
       LIMIT ${limite}
     `);
@@ -584,6 +606,8 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
           motivo_rechazo: string | null;
           comprador_nombre: string | null;
           confirmado_por_nombre: string | null;
+          vendedor_nombre: string | null;
+          referencia_pago: string | null;
         };
         const aIso = (v: Date | string) =>
           v instanceof Date ? v.toISOString() : new Date(v).toISOString();
@@ -594,8 +618,12 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
           monto: Number(f.monto),
           estado: f.estado,
           comprobanteUrl: f.comprobante_url,
-          compradorNombre: f.comprador_nombre ?? 'Venta de ventanilla',
-          confirmadoPorNombre: f.confirmado_por_nombre,
+          referenciaPago: f.referencia_pago,
+          compradorNombre: f.comprador_nombre ?? 'Sin nombre registrado',
+          // Quién lo gestionó: un admin que lo revisó (pago manual en
+          // línea) o, si no, el vendedor que hizo la venta de
+          // ventanilla -- nunca ambos a la vez en la práctica.
+          confirmadoPorNombre: f.confirmado_por_nombre ?? f.vendedor_nombre,
           motivoRechazo: f.motivo_rechazo,
           creadoEn: aIso(f.creado_en),
           resueltoEn: aIso(f.actualizado_en),
