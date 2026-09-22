@@ -7,6 +7,8 @@ import type {
   FilaConteoUsuariosPorRol,
   ModoIvaBoleto,
   DatosNuevoAdministrador,
+  FiltrosConciliacion,
+  ResultadoConciliacion,
 } from '../../dominio/admin/admin.ports';
 import { calcularDiscrepancias } from '../../dominio/admin/conciliacion.util';
 
@@ -200,11 +202,39 @@ export class AdminService {
     return this.admin.cambiarEstadoCooperativa(id, nuevoEstado, usuarioId, motivo);
   }
 
-  async conciliacion() {
-    const filas = await this.admin.conciliacion();
-    return filas.map((fila) => ({
+  /**
+   * RF-017, paginación real (22-sep-2026) -- ver el comentario de
+   * ConciliacionQueryDto. soloDiscrepancias/pagina/limite se resuelven
+   * acá (después de calcularDiscrepancias, lógica de negocio pura),
+   * no en el repositorio.
+   */
+  async conciliacion(
+    filtros: FiltrosConciliacion,
+  ): Promise<ResultadoConciliacion> {
+    const filasCrudas = await this.admin.conciliacion({
+      desde: filtros.desde,
+      hasta: filtros.hasta,
+      cooperativaId: filtros.cooperativaId,
+      busqueda: filtros.busqueda,
+    });
+    const todas = filasCrudas.map((fila) => ({
       ...fila,
       discrepancias: calcularDiscrepancias(fila),
     }));
+    const totalConDiscrepancias = todas.filter(
+      (f) => f.discrepancias.length > 0,
+    ).length;
+    const filtradas = filtros.soloDiscrepancias
+      ? todas.filter((f) => f.discrepancias.length > 0)
+      : todas;
+
+    const offset = (filtros.pagina - 1) * filtros.limite;
+    return {
+      filas: filtradas.slice(offset, offset + filtros.limite),
+      total: filtradas.length,
+      totalConDiscrepancias,
+      pagina: filtros.pagina,
+      limite: filtros.limite,
+    };
   }
 }

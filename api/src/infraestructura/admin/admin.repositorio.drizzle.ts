@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Inject } from '@nestjs/common';
-import { sql, eq, inArray } from 'drizzle-orm';
+import { sql, eq, inArray, SQL } from 'drizzle-orm';
 import {
   cooperativas,
   usuarios,
@@ -25,6 +25,7 @@ import type {
   DatosNuevoAdministrador,
   AdministradorResumen,
   FilaConciliacionCruda,
+  FiltrosConciliacionSql,
 } from '../../dominio/admin/admin.ports';
 
 /**
@@ -781,7 +782,40 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
    * producción. El `::text` explícito antes de agregar fuerza el array
    * resultante al tipo estándar `text[]`, que `pg` sí reconoce y parsea.
    */
-  async conciliacion(): Promise<FilaConciliacionCruda[]> {
+  async conciliacion(
+    filtros: FiltrosConciliacionSql,
+  ): Promise<FilaConciliacionCruda[]> {
+    // Filtros server-side (22-sep-2026, RF-017) -- ver el comentario de
+    // ConciliacionQueryDto: soloDiscrepancias/pagina/limite se aplican
+    // en el servicio, después de calcularDiscrepancias (lógica de
+    // negocio, no vive en SQL). Estos cuatro sí van en la consulta,
+    // para no traer de la base más de lo necesario.
+    const condiciones: SQL[] = [];
+    if (filtros.desde) {
+      condiciones.push(
+        sql`(b.creado_en AT TIME ZONE 'America/Guayaquil')::date >= ${filtros.desde}::date`,
+      );
+    }
+    if (filtros.hasta) {
+      condiciones.push(
+        sql`(b.creado_en AT TIME ZONE 'America/Guayaquil')::date <= ${filtros.hasta}::date`,
+      );
+    }
+    if (filtros.cooperativaId) {
+      condiciones.push(sql`b.cooperativa_id = ${filtros.cooperativaId}`);
+    }
+    const texto = filtros.busqueda?.trim();
+    if (texto) {
+      const patron = `%${texto}%`;
+      condiciones.push(
+        sql`(b.codigo_qr ILIKE ${patron} OR coop.nombre_comercial ILIKE ${patron})`,
+      );
+    }
+    const donde =
+      condiciones.length > 0
+        ? sql`WHERE ${sql.join(condiciones, sql` AND `)}`
+        : sql``;
+
     const resultado = await this.db.execute(sql`
       SELECT
         b.id AS "boletoId",
@@ -811,7 +845,13 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
         FROM comprobantes_electronicos ce_int
         WHERE ce_int.compra_id = c.id
       ) ce ON true
+      ${donde}
       ORDER BY b.creado_en DESC
+      -- Tope de seguridad (22-sep-2026): el frontend siempre manda un
+      -- rango de fechas por defecto, pero si algún caller llegara a
+      -- omitirlo, esto evita traer literalmente todos los boletos de
+      -- la plataforma en una sola consulta.
+      LIMIT 20000
     `);
     return resultado.rows as unknown as FilaConciliacionCruda[];
   }

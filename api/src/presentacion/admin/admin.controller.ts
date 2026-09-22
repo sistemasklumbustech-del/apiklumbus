@@ -6,6 +6,7 @@ import {
   Patch,
   Delete,
   Param,
+  Query,
   Request,
   UseGuards,
   BadRequestException,
@@ -23,6 +24,7 @@ import {
   ActualizarContactoSoporteDto,
   ActualizarModoIvaBoletoDto,
   CrearAdministradorDto,
+  ConciliacionQueryDto,
 } from './dto/admin.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -134,8 +136,16 @@ export class AdminController {
   }
 
   @Get('reportes/conciliacion')
-  async conciliacion() {
-    return this.admin.conciliacion();
+  async conciliacion(@Query() dto: ConciliacionQueryDto) {
+    return this.admin.conciliacion({
+      desde: dto.desde,
+      hasta: dto.hasta,
+      cooperativaId: dto.cooperativaId,
+      busqueda: dto.busqueda,
+      soloDiscrepancias: dto.soloDiscrepancias,
+      pagina: dto.pagina ?? 1,
+      limite: dto.limite ?? 50,
+    });
   }
 
   @Get('iva-nacional')

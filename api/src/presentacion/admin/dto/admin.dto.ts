@@ -1,16 +1,21 @@
 import {
+  IsBoolean,
   IsEmail,
   IsIn,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
   IsUrl,
+  IsUUID,
+  Matches,
   Max,
+  MaxLength,
   Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 class DatosCooperativaDto {
   @IsString()
@@ -219,4 +224,55 @@ export class CrearAdministradorDto {
 
   @IsIn(['admin_plataforma', 'super_admin'])
   rol!: 'admin_plataforma' | 'super_admin';
+}
+
+/**
+ * RF-017, paginación real (22-sep-2026) -- antes este reporte traía
+ * TODOS los boletos de toda la plataforma en una sola llamada, sin
+ * ningún filtro server-side; con miles de boletos eso se vuelve lento
+ * o directamente inviable. `soloDiscrepancias`/`pagina`/`limite` se
+ * aplican en el servicio (después de calcularDiscrepancias, que es
+ * lógica de negocio pura, no debe vivir en SQL -- ver conciliacion.util.ts);
+ * `desde`/`hasta`/`cooperativaId`/`busqueda` sí se aplican en la
+ * consulta SQL, para no traer de la base más de lo necesario.
+ */
+export class ConciliacionQueryDto {
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'desde debe tener formato YYYY-MM-DD.',
+  })
+  desde?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'hasta debe tener formato YYYY-MM-DD.',
+  })
+  hasta?: string;
+
+  @IsOptional()
+  @IsUUID()
+  cooperativaId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  busqueda?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  soloDiscrepancias?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pagina?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limite?: number;
 }

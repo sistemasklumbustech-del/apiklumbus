@@ -107,6 +107,30 @@ export interface FilaConciliacion extends FilaConciliacionCruda {
   discrepancias: string[];
 }
 
+/** Filtros que sí se aplican en SQL (repositorio) -- ver conciliacion() más abajo. */
+export interface FiltrosConciliacionSql {
+  desde?: string;
+  hasta?: string;
+  cooperativaId?: string;
+  busqueda?: string;
+}
+
+/** Filtros completos que recibe el servicio -- soloDiscrepancias/pagina/limite se resuelven ahí, no en SQL. */
+export interface FiltrosConciliacion extends FiltrosConciliacionSql {
+  soloDiscrepancias?: boolean;
+  pagina: number;
+  limite: number;
+}
+
+export interface ResultadoConciliacion {
+  filas: FilaConciliacion[];
+  total: number;
+  /** Del conjunto ya filtrado por fecha/cooperativa/búsqueda, antes de aplicar soloDiscrepancias. */
+  totalConDiscrepancias: number;
+  pagina: number;
+  limite: number;
+}
+
 export interface AdminRepositorio {
   crearCooperativaConPrimerUsuarioAtomico(
     datosCooperativa: DatosNuevaCooperativa,
@@ -278,6 +302,8 @@ export interface AdminRepositorio {
     motivo?: string,
   ): Promise<{ ok: true } | { ok: false; motivo: string }>;
 
-  /** RF-017 -- una fila cruda por boleto, ver FilaConciliacionCruda. */
-  conciliacion(): Promise<FilaConciliacionCruda[]>;
+  /** RF-017 -- filas crudas por boleto, ya acotadas por los filtros SQL. */
+  conciliacion(
+    filtros: FiltrosConciliacionSql,
+  ): Promise<FilaConciliacionCruda[]>;
 }
