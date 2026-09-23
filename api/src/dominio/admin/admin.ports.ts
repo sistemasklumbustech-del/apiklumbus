@@ -75,6 +75,29 @@ export interface ResultadoAdministradores {
   limite: number;
 }
 
+export interface BannerPropioResumen {
+  id: string;
+  titulo: string;
+  imagenUrl: string;
+  enlaceUrl: string;
+  activo: boolean;
+  orden: number;
+}
+
+export interface FiltrosBanners {
+  activo?: boolean;
+  busqueda?: string;
+  pagina: number;
+  limite: number;
+}
+
+export interface ResultadoBanners {
+  filas: BannerPropioResumen[];
+  total: number;
+  pagina: number;
+  limite: number;
+}
+
 export interface AdministradorResumen {
   id: string;
   correo: string;
@@ -310,16 +333,7 @@ export interface AdminRepositorio {
     usuarioId: string,
   ): Promise<void>;
 
-  listarBannersPropios(): Promise<
-    {
-      id: string;
-      titulo: string;
-      imagenUrl: string;
-      enlaceUrl: string;
-      activo: boolean;
-      orden: number;
-    }[]
-  >;
+  listarBannersPropios(filtros: FiltrosBanners): Promise<ResultadoBanners>;
   crearBannerPropio(datos: {
     titulo: string;
     imagenUrl: string;

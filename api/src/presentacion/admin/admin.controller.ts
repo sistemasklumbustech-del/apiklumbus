@@ -28,6 +28,7 @@ import {
   BuscarCooperativasDto,
   ConsultarPuntosOperacionDto,
   ConsultarAdministradoresDto,
+  ConsultarBannersDto,
 } from './dto/admin.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -184,8 +185,13 @@ export class AdminController {
   }
 
   @Get('banners-propios')
-  async listarBannersPropios() {
-    return this.admin.listarBannersPropios();
+  async listarBannersPropios(@Query() dto: ConsultarBannersDto) {
+    return this.admin.listarBannersPropios({
+      activo: dto.activo,
+      busqueda: dto.busqueda,
+      pagina: dto.pagina ?? 1,
+      limite: dto.limite ?? 25,
+    });
   }
 
   @Post('banners-propios')

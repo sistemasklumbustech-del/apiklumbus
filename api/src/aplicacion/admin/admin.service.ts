@@ -12,6 +12,7 @@ import type {
   FiltrosCooperativas,
   FiltrosPuntosOperacion,
   FiltrosAdministradores,
+  FiltrosBanners,
 } from '../../dominio/admin/admin.ports';
 import { calcularDiscrepancias } from '../../dominio/admin/conciliacion.util';
 
@@ -120,8 +121,8 @@ export class AdminService {
     return this.admin.actualizarContactoSoporte(datos, usuarioId);
   }
 
-  async listarBannersPropios() {
-    return this.admin.listarBannersPropios();
+  async listarBannersPropios(filtros: FiltrosBanners) {
+    return this.admin.listarBannersPropios(filtros);
   }
 
   async crearBannerPropio(datos: {

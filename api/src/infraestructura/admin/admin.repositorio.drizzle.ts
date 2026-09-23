@@ -42,6 +42,8 @@ import type {
   ResultadoPuntosOperacion,
   FiltrosAdministradores,
   ResultadoAdministradores,
+  FiltrosBanners,
+  ResultadoBanners,
 } from '../../dominio/admin/admin.ports';
 
 /**
@@ -609,8 +611,26 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
     `);
   }
 
-  async listarBannersPropios() {
-    return this.db
+  async listarBannersPropios(
+    filtros: FiltrosBanners,
+  ): Promise<ResultadoBanners> {
+    // Paginación real (23-sep-2026).
+    const condiciones: SQL[] = [];
+    if (filtros.activo !== undefined) {
+      condiciones.push(eq(bannersPropios.activo, filtros.activo));
+    }
+    const texto = filtros.busqueda?.trim();
+    if (texto) {
+      condiciones.push(ilike(bannersPropios.titulo, `%${texto}%`));
+    }
+    const donde = condiciones.length > 0 ? and(...condiciones) : undefined;
+
+    const [{ total }] = await this.db
+      .select({ total: count() })
+      .from(bannersPropios)
+      .where(donde);
+
+    const filas = await this.db
       .select({
         id: bannersPropios.id,
         titulo: bannersPropios.titulo,
@@ -620,7 +640,11 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
         orden: bannersPropios.orden,
       })
       .from(bannersPropios)
-      .orderBy(bannersPropios.orden);
+      .where(donde)
+      .orderBy(bannersPropios.orden)
+      .limit(filtros.limite)
+      .offset((filtros.pagina - 1) * filtros.limite);
+    return { filas, total, pagina: filtros.pagina, limite: filtros.limite };
   }
 
   async crearBannerPropio(datos: {
