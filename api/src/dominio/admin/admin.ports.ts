@@ -165,6 +165,39 @@ export interface ResultadoCooperativas {
   limite: number;
 }
 
+/**
+ * Paginación real (23-sep-2026) -- antes listarPuntosOperacion devolvía
+ * todos los puntos de una sola vez. Único consumidor: la tabla de
+ * gestión de /admin/puntos-operacion (la cola de propuestas
+ * pendientes tiene su propio endpoint, corto por diseño).
+ */
+export interface PuntoOperacionAdmin {
+  id: string;
+  tipo: string;
+  nombre: string;
+  ciudad: string;
+  provincia: string;
+  tasaMonto: number | null;
+  logoUrl: string | null;
+  latitud: number | null;
+  longitud: number | null;
+  cooperativaPropietariaNombre: string | null;
+}
+
+export interface FiltrosPuntosOperacion {
+  tipo?: string;
+  busqueda?: string;
+  pagina: number;
+  limite: number;
+}
+
+export interface ResultadoPuntosOperacion {
+  filas: PuntoOperacionAdmin[];
+  total: number;
+  pagina: number;
+  limite: number;
+}
+
 export interface AdminRepositorio {
   crearCooperativaConPrimerUsuarioAtomico(
     datosCooperativa: DatosNuevaCooperativa,
@@ -179,17 +212,9 @@ export interface AdminRepositorio {
     filtros: FiltrosCooperativas,
   ): Promise<ResultadoCooperativas>;
 
-  listarPuntosOperacion(): Promise<
-    {
-      id: string;
-      tipo: string;
-      nombre: string;
-      ciudad: string;
-      provincia: string;
-      tasaMonto: number | null;
-      cooperativaPropietariaNombre: string | null;
-    }[]
-  >;
+  listarPuntosOperacion(
+    filtros: FiltrosPuntosOperacion,
+  ): Promise<ResultadoPuntosOperacion>;
 
   crearPuntoOperacion(
     datos: DatosNuevoPuntoOperacion,

@@ -10,6 +10,7 @@ import type {
   FiltrosConciliacion,
   ResultadoConciliacion,
   FiltrosCooperativas,
+  FiltrosPuntosOperacion,
 } from '../../dominio/admin/admin.ports';
 import { calcularDiscrepancias } from '../../dominio/admin/conciliacion.util';
 
@@ -54,8 +55,8 @@ export class AdminService {
     return this.admin.buscarCooperativas(filtros);
   }
 
-  async listarPuntosOperacion() {
-    return this.admin.listarPuntosOperacion();
+  async listarPuntosOperacion(filtros: FiltrosPuntosOperacion) {
+    return this.admin.listarPuntosOperacion(filtros);
   }
 
   async crearPuntoOperacion(datos: DatosNuevoPuntoOperacion) {

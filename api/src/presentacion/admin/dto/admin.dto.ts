@@ -306,3 +306,28 @@ export class BuscarCooperativasDto {
   @Max(200)
   limite?: number;
 }
+
+/** Paginación real (23-sep-2026) -- GET /admin/puntos-operacion, antes sin filtros ni límite. */
+export class ConsultarPuntosOperacionDto {
+  @IsOptional()
+  @IsIn(['terminal_terrestre', 'oficina_agencia', 'parada_intermedia'])
+  tipo?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  busqueda?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pagina?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limite?: number;
+}

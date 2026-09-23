@@ -26,6 +26,7 @@ import {
   CrearAdministradorDto,
   ConciliacionQueryDto,
   BuscarCooperativasDto,
+  ConsultarPuntosOperacionDto,
 } from './dto/admin.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -97,8 +98,13 @@ export class AdminController {
   }
 
   @Get('puntos-operacion')
-  async listarPuntosOperacion() {
-    return this.admin.listarPuntosOperacion();
+  async listarPuntosOperacion(@Query() dto: ConsultarPuntosOperacionDto) {
+    return this.admin.listarPuntosOperacion({
+      tipo: dto.tipo,
+      busqueda: dto.busqueda,
+      pagina: dto.pagina ?? 1,
+      limite: dto.limite ?? 25,
+    });
   }
 
   @Patch('puntos-operacion/:id')

@@ -28,6 +28,8 @@ import type {
   FiltrosConciliacionSql,
   FiltrosCooperativas,
   ResultadoCooperativas,
+  FiltrosPuntosOperacion,
+  ResultadoPuntosOperacion,
 } from '../../dominio/admin/admin.ports';
 
 /**
@@ -189,29 +191,70 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
     return { filas, total, pagina: filtros.pagina, limite: filtros.limite };
   }
 
-  async listarPuntosOperacion() {
-    const filas = await this.db
-      .select({
-        id: puntosOperacion.id,
-        tipo: puntosOperacion.tipo,
-        nombre: puntosOperacion.nombre,
-        ciudad: puntosOperacion.ciudad,
-        provincia: puntosOperacion.provincia,
-        tasaMonto: puntosOperacion.tasaMonto,
-        logoUrl: puntosOperacion.logoUrl,
-        latitud: puntosOperacion.latitud,
-        longitud: puntosOperacion.longitud,
-        cooperativaPropietariaNombre: cooperativas.nombreComercial,
-      })
-      .from(puntosOperacion)
-      .leftJoin(
-        cooperativas,
-        eq(puntosOperacion.cooperativaPropietariaId, cooperativas.id),
+  async listarPuntosOperacion(
+    filtros: FiltrosPuntosOperacion,
+  ): Promise<ResultadoPuntosOperacion> {
+    // Paginación real (23-sep-2026) -- antes esta consulta no tenía
+    // WHERE ni LIMIT/OFFSET.
+    const condiciones: SQL[] = [];
+    if (filtros.tipo) {
+      condiciones.push(sql`po.tipo = ${filtros.tipo}`);
+    }
+    const texto = filtros.busqueda?.trim();
+    if (texto) {
+      const patron = `%${texto}%`;
+      condiciones.push(
+        sql`(po.nombre ILIKE ${patron} OR po.ciudad ILIKE ${patron} OR po.provincia ILIKE ${patron})`,
       );
-    return filas.map((f) => ({
-      ...f,
-      tasaMonto: f.tasaMonto !== null ? Number(f.tasaMonto) : null,
-    }));
+    }
+    const donde =
+      condiciones.length > 0
+        ? sql`WHERE ${sql.join(condiciones, sql` AND `)}`
+        : sql``;
+
+    const totalFilas = await this.db.execute(sql`
+      SELECT COUNT(*)::int AS total FROM puntos_operacion po ${donde}
+    `);
+    const total = (totalFilas.rows[0] as { total: number }).total;
+
+    const offset = (filtros.pagina - 1) * filtros.limite;
+    const resultado = await this.db.execute(sql`
+      SELECT po.id, po.tipo, po.nombre, po.ciudad, po.provincia, po.tasa_monto,
+             po.logo_url, po.latitud, po.longitud,
+             c.nombre_comercial AS cooperativa_propietaria_nombre
+      FROM puntos_operacion po
+      LEFT JOIN cooperativas c ON c.id = po.cooperativa_propietaria_id
+      ${donde}
+      ORDER BY po.ciudad ASC, po.nombre ASC
+      LIMIT ${filtros.limite} OFFSET ${offset}
+    `);
+    const filas = resultado.rows.map((fila) => {
+      const f = fila as {
+        id: string;
+        tipo: string;
+        nombre: string;
+        ciudad: string;
+        provincia: string;
+        tasa_monto: string | null;
+        logo_url: string | null;
+        latitud: string | number | null;
+        longitud: string | number | null;
+        cooperativa_propietaria_nombre: string | null;
+      };
+      return {
+        id: f.id,
+        tipo: f.tipo,
+        nombre: f.nombre,
+        ciudad: f.ciudad,
+        provincia: f.provincia,
+        tasaMonto: f.tasa_monto !== null ? Number(f.tasa_monto) : null,
+        logoUrl: f.logo_url,
+        latitud: f.latitud !== null ? Number(f.latitud) : null,
+        longitud: f.longitud !== null ? Number(f.longitud) : null,
+        cooperativaPropietariaNombre: f.cooperativa_propietaria_nombre,
+      };
+    });
+    return { filas, total, pagina: filtros.pagina, limite: filtros.limite };
   }
 
   async crearPuntoOperacion(
