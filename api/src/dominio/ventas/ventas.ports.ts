@@ -152,6 +152,17 @@ export interface PagoManualPendiente {
  * como "revisión", así que no aparece aquí (queda en el historial de
  * Ventas, con su propia referencia/comprobante si el vendedor la dejó).
  */
+export interface FiltrosHistorialPagos {
+  estado?: 'aprobado' | 'rechazado';
+  proveedor?: string;
+  busqueda?: string;
+  /** YYYY-MM-DD, hora de Ecuador. */
+  desde?: string;
+  hasta?: string;
+  pagina: number;
+  limite: number;
+}
+
 export interface PagoManualHistorialItem {
   pagoId: string;
   compraId: string;
@@ -189,6 +200,13 @@ export interface FiltrosSolicitudesFactura {
 
 export interface ResultadoSolicitudesFactura {
   filas: SolicitudFactura[];
+  total: number;
+  pagina: number;
+  limite: number;
+}
+
+export interface ResultadoHistorialPagos {
+  filas: PagoManualHistorialItem[];
   total: number;
   pagina: number;
   limite: number;
@@ -283,11 +301,11 @@ export interface CompraRepositorio {
     cooperativaId: string,
   ): Promise<PagoManualPendiente[]>;
 
-  /** Últimos pagos manuales ya confirmados o rechazados, más recientes primero. */
+  /** Pagos manuales ya confirmados o rechazados, más recientes primero, con filtros y paginación. */
   listarHistorialPagosManuales(
     cooperativaId: string,
-    limite?: number,
-  ): Promise<PagoManualHistorialItem[]>;
+    filtros: FiltrosHistorialPagos,
+  ): Promise<ResultadoHistorialPagos>;
 
   /** Atómico -- mismo patrón que los demás flujos de dinero de este proyecto. */
   confirmarPagoManual(

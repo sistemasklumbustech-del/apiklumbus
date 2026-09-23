@@ -5,6 +5,7 @@ import type {
   PasajeroCheckout,
   PasarelaPago,
   FiltrosSolicitudesFactura,
+  FiltrosHistorialPagos,
 } from '../../dominio/ventas/ventas.ports';
 import { esMenorDeEdad } from '../../dominio/ventas/ventas.ports';
 import type { AlmacenamientoArchivos } from '../../dominio/auth/auth.ports';
@@ -1213,8 +1214,11 @@ export class CheckoutService {
   }
 
   /** Historial de pagos manuales ya confirmados/rechazados (22-sep-2026) -- ver PagoManualHistorialItem. */
-  async listarHistorialPagosManuales(cooperativaId: string) {
-    return this.compras.listarHistorialPagosManuales(cooperativaId);
+  async listarHistorialPagosManuales(
+    cooperativaId: string,
+    filtros: FiltrosHistorialPagos,
+  ) {
+    return this.compras.listarHistorialPagosManuales(cooperativaId, filtros);
   }
 
   async confirmarPagoManual(

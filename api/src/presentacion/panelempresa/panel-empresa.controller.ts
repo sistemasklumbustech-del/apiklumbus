@@ -59,6 +59,7 @@ import {
   ConfirmarPagoManualDto,
   MarcarFacturaEmitidaDto,
   ConsultarSolicitudesFacturaDto,
+  ConsultarHistorialPagosDto,
 } from './dto/metodos-pago.dto';
 import { VenderEnVentanillaDto, CotizarVentanillaDto } from './dto/venta-ventanilla.dto';
 import {
@@ -876,9 +877,21 @@ export class PanelEmpresaController {
   /** Historial de pagos manuales ya resueltos (22-sep-2026) -- da uso real a esta pantalla fuera de la bandeja de tareas. */
   @Roles('admin_cooperativa')
   @Get('pagos-historial')
-  async listarHistorialPagos(@Request() req: { user: PayloadToken }) {
+  async listarHistorialPagos(
+    @Request() req: { user: PayloadToken },
+    @Query() dto: ConsultarHistorialPagosDto,
+  ) {
     return this.checkout.listarHistorialPagosManuales(
       cooperativaDelToken(req.user),
+      {
+        estado: dto.estado,
+        proveedor: dto.proveedor,
+        busqueda: dto.busqueda,
+        desde: dto.desde,
+        hasta: dto.hasta,
+        pagina: dto.pagina ?? 1,
+        limite: dto.limite ?? 25,
+      },
     );
   }
 

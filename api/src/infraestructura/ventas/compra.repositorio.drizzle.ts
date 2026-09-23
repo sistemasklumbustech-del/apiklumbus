@@ -42,10 +42,10 @@ import type {
   BoletoEmitido,
   ReciboCompra,
   PagoManualPendiente,
-  PagoManualHistorialItem,
-  SolicitudFactura,
   FiltrosSolicitudesFactura,
   ResultadoSolicitudesFactura,
+  FiltrosHistorialPagos,
+  ResultadoHistorialPagos,
 } from '../../dominio/ventas/ventas.ports';
 import {
   factorDescuento,
@@ -544,8 +544,8 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
 
   async listarHistorialPagosManuales(
     cooperativaId: string,
-    limite = 30,
-  ): Promise<PagoManualHistorialItem[]> {
+    filtros: FiltrosHistorialPagos,
+  ): Promise<ResultadoHistorialPagos> {
     // Mismo criterio de acceso que listarPagosPendientesConfirmacion
     // (dbPublico + filtro explícito por cooperativa, ver su comentario).
     //
@@ -558,7 +558,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
     // algo real que mostrar (comprobante o una referencia que no sea
     // el marcador interno) -- una venta de ventanilla sin ningún
     // respaldo sigue sin aparecer aquí, sería puro ruido.
-    const resultado = await this.dbPublico.execute(sql`
+    const base = sql`
       SELECT DISTINCT ON (pg.id)
         pg.id AS pago_id, pg.compra_id, pg.proveedor, pg.monto, pg.estado,
         pg.comprobante_url, pg.creado_en, pg.actualizado_en,
@@ -592,46 +592,89 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
           )
         )
       ORDER BY pg.id, pg.actualizado_en DESC
-      LIMIT ${limite}
+    `;
+
+    // Paginación real (23-sep-2026): los filtros y el orden se aplican
+    // SOBRE la consulta base (que deduplica con DISTINCT ON por pago),
+    // no dentro de ella -- antes el LIMIT se aplicaba sobre el orden
+    // por id, no por fecha, lo que hacía imposible paginar bien.
+    const condiciones: SQL[] = [sql`TRUE`];
+    if (filtros.estado) {
+      condiciones.push(sql`estado = ${filtros.estado}`);
+    }
+    if (filtros.proveedor) {
+      condiciones.push(sql`proveedor = ${filtros.proveedor}`);
+    }
+    if (filtros.desde) {
+      condiciones.push(
+        sql`(actualizado_en AT TIME ZONE 'America/Guayaquil')::date >= ${filtros.desde}::date`,
+      );
+    }
+    if (filtros.hasta) {
+      condiciones.push(
+        sql`(actualizado_en AT TIME ZONE 'America/Guayaquil')::date <= ${filtros.hasta}::date`,
+      );
+    }
+    const texto = filtros.busqueda?.trim();
+    if (texto) {
+      const patron = `%${texto}%`;
+      condiciones.push(
+        sql`(comprador_nombre ILIKE ${patron} OR referencia_pago ILIKE ${patron})`,
+      );
+    }
+    const donde = sql.join(condiciones, sql` AND `);
+
+    const totalFilas = await this.dbPublico.execute(sql`
+      WITH base AS (${base})
+      SELECT COUNT(*)::int AS total FROM base WHERE ${donde}
     `);
-    return resultado.rows
-      .map((fila) => {
-        const f = fila as {
-          pago_id: string;
-          compra_id: string;
-          proveedor: string;
-          monto: string;
-          estado: 'aprobado' | 'rechazado';
-          comprobante_url: string | null;
-          creado_en: Date | string;
-          actualizado_en: Date | string;
-          motivo_rechazo: string | null;
-          comprador_nombre: string | null;
-          confirmado_por_nombre: string | null;
-          vendedor_nombre: string | null;
-          referencia_pago: string | null;
-        };
-        const aIso = (v: Date | string) =>
-          v instanceof Date ? v.toISOString() : new Date(v).toISOString();
-        return {
-          pagoId: f.pago_id,
-          compraId: f.compra_id,
-          proveedor: f.proveedor,
-          monto: Number(f.monto),
-          estado: f.estado,
-          comprobanteUrl: f.comprobante_url,
-          referenciaPago: f.referencia_pago,
-          compradorNombre: f.comprador_nombre ?? 'Sin nombre registrado',
-          // Quién lo gestionó: un admin que lo revisó (pago manual en
-          // línea) o, si no, el vendedor que hizo la venta de
-          // ventanilla -- nunca ambos a la vez en la práctica.
-          confirmadoPorNombre: f.confirmado_por_nombre ?? f.vendedor_nombre,
-          motivoRechazo: f.motivo_rechazo,
-          creadoEn: aIso(f.creado_en),
-          resueltoEn: aIso(f.actualizado_en),
-        };
-      })
-      .sort((a, b) => b.resueltoEn.localeCompare(a.resueltoEn));
+    const total = (totalFilas.rows[0] as { total: number }).total;
+
+    const offset = (filtros.pagina - 1) * filtros.limite;
+    const resultado = await this.dbPublico.execute(sql`
+      WITH base AS (${base})
+      SELECT * FROM base
+      WHERE ${donde}
+      ORDER BY actualizado_en DESC, pago_id
+      LIMIT ${filtros.limite} OFFSET ${offset}
+    `);
+    const filas = resultado.rows.map((fila) => {
+      const f = fila as {
+        pago_id: string;
+        compra_id: string;
+        proveedor: string;
+        monto: string;
+        estado: 'aprobado' | 'rechazado';
+        comprobante_url: string | null;
+        creado_en: Date | string;
+        actualizado_en: Date | string;
+        motivo_rechazo: string | null;
+        comprador_nombre: string | null;
+        confirmado_por_nombre: string | null;
+        vendedor_nombre: string | null;
+        referencia_pago: string | null;
+      };
+      const aIso = (v: Date | string) =>
+        v instanceof Date ? v.toISOString() : new Date(v).toISOString();
+      return {
+        pagoId: f.pago_id,
+        compraId: f.compra_id,
+        proveedor: f.proveedor,
+        monto: Number(f.monto),
+        estado: f.estado,
+        comprobanteUrl: f.comprobante_url,
+        referenciaPago: f.referencia_pago,
+        compradorNombre: f.comprador_nombre ?? 'Sin nombre registrado',
+        // Quién lo gestionó: un admin que lo revisó (pago manual en
+        // línea) o, si no, el vendedor que hizo la venta de
+        // ventanilla -- nunca ambos a la vez en la práctica.
+        confirmadoPorNombre: f.confirmado_por_nombre ?? f.vendedor_nombre,
+        motivoRechazo: f.motivo_rechazo,
+        creadoEn: aIso(f.creado_en),
+        resueltoEn: aIso(f.actualizado_en),
+      };
+    });
+    return { filas, total, pagina: filtros.pagina, limite: filtros.limite };
   }
 
   async confirmarPagoManual(
