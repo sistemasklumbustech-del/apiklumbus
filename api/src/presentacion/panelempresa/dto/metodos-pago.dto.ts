@@ -1,4 +1,16 @@
-import { IsIn, IsBoolean, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  IsIn,
+  IsBoolean,
+  IsInt,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import type { EntidadFinanciera } from '../../../dominio/panelempresa/panel-empresa.ports';
 
 /**
@@ -56,4 +68,29 @@ export class MarcarFacturaEmitidaDto {
   @IsOptional()
   @IsString()
   urlFactura?: string;
+}
+
+/** Paginación real (23-sep-2026) -- GET /coop/solicitudes-factura. */
+export class ConsultarSolicitudesFacturaDto {
+  @IsOptional()
+  @IsIn(['pendiente', 'emitida'])
+  estado?: 'pendiente' | 'emitida';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  busqueda?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pagina?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limite?: number;
 }

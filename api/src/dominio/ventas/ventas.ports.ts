@@ -180,6 +180,20 @@ export interface SolicitudFactura {
   creadoEn: string;
 }
 
+export interface FiltrosSolicitudesFactura {
+  estado?: 'pendiente' | 'emitida';
+  busqueda?: string;
+  pagina: number;
+  limite: number;
+}
+
+export interface ResultadoSolicitudesFactura {
+  filas: SolicitudFactura[];
+  total: number;
+  pagina: number;
+  limite: number;
+}
+
 export interface PagoExistente {
   compraId: string;
   estado: 'pendiente' | 'aprobado' | 'rechazado' | 'revertido';
@@ -421,7 +435,10 @@ export interface CompraRepositorio {
     usuarioId: string,
     datosTributarios: Record<string, string>,
   ): Promise<{ ok: true; id: string } | { ok: false; motivo: string }>;
-  listarSolicitudesFactura(cooperativaId: string): Promise<SolicitudFactura[]>;
+  listarSolicitudesFactura(
+    cooperativaId: string,
+    filtros: FiltrosSolicitudesFactura,
+  ): Promise<ResultadoSolicitudesFactura>;
   marcarFacturaEmitida(
     solicitudId: string,
     cooperativaId: string,

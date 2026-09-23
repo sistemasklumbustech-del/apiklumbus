@@ -54,7 +54,12 @@ import {
   ConfirmarDatosCooperativaDto,
   ProponerPuntoOperacionDto,
 } from './dto/panel-empresa.dto';
-import { GuardarMetodoPagoDto, ConfirmarPagoManualDto, MarcarFacturaEmitidaDto } from './dto/metodos-pago.dto';
+import {
+  GuardarMetodoPagoDto,
+  ConfirmarPagoManualDto,
+  MarcarFacturaEmitidaDto,
+  ConsultarSolicitudesFacturaDto,
+} from './dto/metodos-pago.dto';
 import { VenderEnVentanillaDto, CotizarVentanillaDto } from './dto/venta-ventanilla.dto';
 import {
   CrearCredencialApiDto,
@@ -912,8 +917,19 @@ export class PanelEmpresaController {
    */
   @Roles('admin_cooperativa')
   @Get('solicitudes-factura')
-  async listarSolicitudesFactura(@Request() req: { user: PayloadToken }) {
-    return this.checkout.listarSolicitudesFactura(cooperativaDelToken(req.user));
+  async listarSolicitudesFactura(
+    @Request() req: { user: PayloadToken },
+    @Query() dto: ConsultarSolicitudesFacturaDto,
+  ) {
+    return this.checkout.listarSolicitudesFactura(
+      cooperativaDelToken(req.user),
+      {
+        estado: dto.estado,
+        busqueda: dto.busqueda,
+        pagina: dto.pagina ?? 1,
+        limite: dto.limite ?? 25,
+      },
+    );
   }
 
   @Roles('admin_cooperativa')

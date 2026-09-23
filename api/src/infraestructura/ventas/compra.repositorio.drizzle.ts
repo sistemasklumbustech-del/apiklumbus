@@ -1,5 +1,5 @@
 import { Inject, Injectable, BadRequestException, Logger } from '@nestjs/common';
-import { eq, and, sql, isNull } from 'drizzle-orm';
+import { eq, and, sql, isNull, SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { NotificadorEmail } from '../../dominio/auth/auth.ports';
 import { NOTIFICADOR_EMAIL } from '../../aplicacion/auth/auth.service';
@@ -44,6 +44,8 @@ import type {
   PagoManualPendiente,
   PagoManualHistorialItem,
   SolicitudFactura,
+  FiltrosSolicitudesFactura,
+  ResultadoSolicitudesFactura,
 } from '../../dominio/ventas/ventas.ports';
 import {
   factorDescuento,
@@ -1274,17 +1276,49 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
     return { ok: true, id: (resultado.rows[0] as { id: string }).id };
   }
 
-  async listarSolicitudesFactura(cooperativaId: string): Promise<SolicitudFactura[]> {
+  async listarSolicitudesFactura(
+    cooperativaId: string,
+    filtros: FiltrosSolicitudesFactura,
+  ): Promise<ResultadoSolicitudesFactura> {
+    // Paginación real (23-sep-2026).
+    const condiciones: SQL[] = [sql`b.cooperativa_id = ${cooperativaId}`];
+    if (filtros.estado) {
+      condiciones.push(sql`sf.estado = ${filtros.estado}`);
+    }
+    const texto = filtros.busqueda?.trim();
+    if (texto) {
+      const patron = `%${texto}%`;
+      condiciones.push(
+        sql`((pc.nombres || ' ' || pc.apellidos) ILIKE ${patron} OR sf.datos_tributarios::text ILIKE ${patron})`,
+      );
+    }
+    const donde = sql.join(condiciones, sql` AND `);
+
+    const totalFilas = await this.dbPublico.execute(sql`
+      SELECT COUNT(*)::int AS total
+      FROM solicitudes_factura_cooperativa sf
+      INNER JOIN boletos b ON b.id = sf.boleto_id
+      INNER JOIN pasajeros_compra pc ON pc.id = b.pasajero_compra_id
+      WHERE ${donde}
+    `);
+    const total = (totalFilas.rows[0] as { total: number }).total;
+
+    const offset = (filtros.pagina - 1) * filtros.limite;
+    // Pendientes primero y la más antigua arriba (hay que atenderlas en
+    // orden de llegada); las emitidas después, la más reciente primero.
     const resultado = await this.dbPublico.execute(sql`
       SELECT sf.id, sf.boleto_id, sf.estado, sf.datos_tributarios, sf.url_factura,
              sf.creado_en, pc.nombres || ' ' || pc.apellidos AS pasajero_nombre
       FROM solicitudes_factura_cooperativa sf
       INNER JOIN boletos b ON b.id = sf.boleto_id
       INNER JOIN pasajeros_compra pc ON pc.id = b.pasajero_compra_id
-      WHERE b.cooperativa_id = ${cooperativaId}
-      ORDER BY sf.creado_en ASC
+      WHERE ${donde}
+      ORDER BY CASE WHEN sf.estado = 'pendiente' THEN 0 ELSE 1 END,
+               CASE WHEN sf.estado = 'pendiente' THEN sf.creado_en END ASC,
+               sf.creado_en DESC
+      LIMIT ${filtros.limite} OFFSET ${offset}
     `);
-    return resultado.rows.map((fila) => {
+    const filas = resultado.rows.map((fila) => {
       const f = fila as {
         id: string;
         boleto_id: string;
@@ -1304,6 +1338,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
         creadoEn: f.creado_en instanceof Date ? f.creado_en.toISOString() : new Date(f.creado_en).toISOString(),
       };
     });
+    return { filas, total, pagina: filtros.pagina, limite: filtros.limite };
   }
 
   async marcarFacturaEmitida(

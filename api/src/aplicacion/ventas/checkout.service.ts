@@ -4,6 +4,7 @@ import type {
   CompraRepositorio,
   PasajeroCheckout,
   PasarelaPago,
+  FiltrosSolicitudesFactura,
 } from '../../dominio/ventas/ventas.ports';
 import { esMenorDeEdad } from '../../dominio/ventas/ventas.ports';
 import type { AlmacenamientoArchivos } from '../../dominio/auth/auth.ports';
@@ -1307,8 +1308,11 @@ export class CheckoutService {
     return { ok: true, id: resultado.id };
   }
 
-  async listarSolicitudesFactura(cooperativaId: string) {
-    return this.compras.listarSolicitudesFactura(cooperativaId);
+  async listarSolicitudesFactura(
+    cooperativaId: string,
+    filtros: FiltrosSolicitudesFactura,
+  ) {
+    return this.compras.listarSolicitudesFactura(cooperativaId, filtros);
   }
 
   async marcarFacturaEmitida(solicitudId: string, cooperativaId: string, urlFactura?: string) {
