@@ -10,6 +10,7 @@ import type {
   FiltrosVentas,
   FiltrosViajes,
   FiltrosRutas,
+  FiltrosUnidades,
   DatosNuevoTipoVehiculo,
   DatosNuevaUnidad,
   DatosEditarTipoVehiculo,
@@ -126,6 +127,10 @@ export class PanelEmpresaService {
 
   listarUnidades(cooperativaId: string) {
     return this.panel.listarUnidades(cooperativaId);
+  }
+
+  buscarUnidades(cooperativaId: string, filtros: FiltrosUnidades) {
+    return this.panel.buscarUnidades(cooperativaId, filtros);
   }
 
   actualizarEstadoUnidad(

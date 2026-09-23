@@ -30,6 +30,8 @@ import type {
   ResultadoRutas,
   TipoVehiculoResumen,
   UnidadResumen,
+  FiltrosUnidades,
+  ResultadoUnidades,
   FiltrosViajes,
   ResultadoViajes,
   MetodoPagoCooperativa,
@@ -270,6 +272,67 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
           activo: f.activo,
         };
       });
+    });
+  }
+
+  async buscarUnidades(
+    cooperativaId: string,
+    filtros: FiltrosUnidades,
+  ): Promise<ResultadoUnidades> {
+    return ejecutarComoCooperativa(this.db, cooperativaId, async (tx) => {
+      // Paginación real (22-sep-2026) -- antes esta tabla de gestión
+      // usaba listarUnidades (sin filtro ni límite); ese método se
+      // deja intacto para el selector de unidad de Viajes.
+      const condiciones = [sql`u.cooperativa_id = ${cooperativaId}`];
+      if (filtros.activo !== undefined) {
+        condiciones.push(sql`u.activo = ${filtros.activo}`);
+      }
+      const texto = filtros.busqueda?.trim();
+      if (texto) {
+        const patron = `%${texto}%`;
+        condiciones.push(
+          sql`(u.placa ILIKE ${patron} OR u.identificador_operativo ILIKE ${patron} OR tv.nombre ILIKE ${patron})`,
+        );
+      }
+      const donde = sql.join(condiciones, sql` AND `);
+
+      const desdeJoins = sql`
+        FROM unidades u
+        JOIN tipos_vehiculo tv ON tv.id = u.tipo_vehiculo_id
+      `;
+
+      const totalFilas = await tx.execute(sql`
+        SELECT COUNT(*)::int AS total ${desdeJoins} WHERE ${donde}
+      `);
+      const total = (totalFilas.rows[0] as { total: number }).total;
+
+      const offset = (filtros.pagina - 1) * filtros.limite;
+      const resultado = await tx.execute(sql`
+        SELECT u.id, u.placa, u.identificador_operativo, u.tipo_vehiculo_id, tv.nombre AS tipo_vehiculo_nombre, u.activo
+        ${desdeJoins}
+        WHERE ${donde}
+        ORDER BY u.creado_en DESC
+        LIMIT ${filtros.limite} OFFSET ${offset}
+      `);
+      const filas = resultado.rows.map((fila) => {
+        const f = fila as {
+          id: string;
+          placa: string;
+          identificador_operativo: string;
+          tipo_vehiculo_id: string;
+          tipo_vehiculo_nombre: string;
+          activo: boolean;
+        };
+        return {
+          id: f.id,
+          placa: f.placa,
+          identificadorOperativo: f.identificador_operativo,
+          tipoVehiculoId: f.tipo_vehiculo_id,
+          tipoVehiculoNombre: f.tipo_vehiculo_nombre,
+          activo: f.activo,
+        };
+      });
+      return { filas, total, pagina: filtros.pagina, limite: filtros.limite };
     });
   }
 

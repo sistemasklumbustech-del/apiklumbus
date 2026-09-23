@@ -35,6 +35,7 @@ import {
   ConsultarVentasDto,
   ConsultarViajesDto,
   BuscarRutasDto,
+  BuscarUnidadesDto,
   EditarViajeDto,
   ActualizarEstadoUnidadDto,
   VerificarMenorDto,
@@ -142,6 +143,21 @@ export class PanelEmpresaController {
   @Get('unidades')
   async listarUnidades(@Request() req: { user: PayloadToken }) {
     return this.panel.listarUnidades(cooperativaDelToken(req.user));
+  }
+
+  /** Tabla de gestión con filtros y paginación real -- ver el comentario de BuscarUnidadesDto. */
+  @Roles('admin_cooperativa', 'vendedor')
+  @Get('unidades/buscar')
+  async buscarUnidades(
+    @Query() dto: BuscarUnidadesDto,
+    @Request() req: { user: PayloadToken },
+  ) {
+    return this.panel.buscarUnidades(cooperativaDelToken(req.user), {
+      activo: dto.activo,
+      busqueda: dto.busqueda,
+      pagina: dto.pagina ?? 1,
+      limite: dto.limite ?? 25,
+    });
   }
 
   /** Activar/desactivar una unidad â€” hallazgo cerrado 22-jul-2026. */

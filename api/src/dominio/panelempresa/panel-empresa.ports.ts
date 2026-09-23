@@ -511,6 +511,26 @@ export interface UnidadResumen {
   activo: boolean;
 }
 
+/**
+ * Paginación real (22-sep-2026) -- distinta de listarUnidades (abajo),
+ * que se deja intacta porque Viajes la usa para su selector de unidad
+ * (crear viaje y cambiar unidad), que necesita la lista completa sin
+ * paginar. Esta es solo para la tabla de gestión de Unidades.
+ */
+export interface FiltrosUnidades {
+  activo?: boolean;
+  busqueda?: string;
+  pagina: number;
+  limite: number;
+}
+
+export interface ResultadoUnidades {
+  filas: UnidadResumen[];
+  total: number;
+  pagina: number;
+  limite: number;
+}
+
 export interface ViajeResumen {
   id: string;
   rutaNombre: string;
@@ -711,6 +731,11 @@ export interface PanelEmpresaRepositorio {
   ): Promise<{ id: string }>;
   /** Unidades (buses) de la cooperativa, con el nombre de su tipo ya resuelto. */
   listarUnidades(cooperativaId: string): Promise<UnidadResumen[]>;
+
+  buscarUnidades(
+    cooperativaId: string,
+    filtros: FiltrosUnidades,
+  ): Promise<ResultadoUnidades>;
 
   /**
    * Activar/desactivar una unidad — hallazgo real 22-jul-2026: la

@@ -16,7 +16,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 /**
  * Cooperativas proponen sus propios puntos de operación (13-ago-2026)
@@ -580,6 +580,36 @@ export class ConfirmarDatosCooperativaDto {
  * Esta es para la tabla de gestión, en GET /coop/rutas/buscar.
  */
 export class BuscarRutasDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  busqueda?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pagina?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limite?: number;
+}
+
+/**
+ * Paginación real (22-sep-2026) -- distinta de GET /coop/unidades (sin
+ * filtros, se deja intacta porque la usa el selector de unidad de
+ * Viajes). Esta es para la tabla de gestión, en GET /coop/unidades/buscar.
+ */
+export class BuscarUnidadesDto {
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  activo?: boolean;
+
   @IsOptional()
   @IsString()
   @MaxLength(100)
