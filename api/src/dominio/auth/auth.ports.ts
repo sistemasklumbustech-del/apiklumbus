@@ -248,6 +248,32 @@ export interface NotificadorEmail {
   ): Promise<void>;
 
   enviarVerificacionCorreo(correo: string, tokenPlano: string): Promise<void>;
+
+  /** RF-019 (23-sep-2026) -- aviso a la cooperativa de un reclamo nuevo. */
+  enviarReclamoNuevo(
+    correo: string,
+    detalle: {
+      reclamoId: string;
+      tipo: string;
+      descripcion: string;
+      pasajeroNombre: string;
+      ruta: string;
+      fechaSalida: string;
+    },
+  ): Promise<void>;
+
+  /** RF-019 -- aviso al pasajero de que su reclamo fue resuelto o rechazado. */
+  enviarReclamoResuelto(
+    correo: string,
+    detalle: {
+      reclamoId: string;
+      estado: 'resuelto' | 'rechazado';
+      respuesta: string;
+      montoReconocido: number | null;
+      cooperativaNombre: string;
+      ruta: string;
+    },
+  ): Promise<void>;
 }
 
 /**

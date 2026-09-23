@@ -15,6 +15,7 @@ import { VentasModule } from './presentacion/ventas/ventas.module';
 import { AdminModule } from './presentacion/admin/admin.module';
 import { PanelEmpresaModule } from './presentacion/panelempresa/panel-empresa.module';
 import { CalificacionesModule } from './presentacion/calificaciones/calificaciones.module';
+import { ReclamosModule } from './presentacion/reclamos/reclamos.module';
 import { ComercialModule } from './presentacion/comercial/comercial.module';
 import { LiquidacionesModule } from './presentacion/liquidaciones/liquidaciones.module';
 import { ApiExternaModule } from './presentacion/api-externa/api-externa.module';
@@ -66,6 +67,7 @@ import { TerminosModule } from './presentacion/terminos/terminos.module';
     WalletModule,
     ReferidosModule,
     TerminosModule,
+    ReclamosModule,
   ],
   controllers: [AppController, SaludController],
   providers: [

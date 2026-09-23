@@ -29,6 +29,26 @@ export class SimuladorNotificador implements NotificadorEmail {
     );
   }
 
+  enviarReclamoNuevo(
+    correo: string,
+    detalle: { reclamoId: string; tipo: string; ruta: string },
+  ): Promise<void> {
+    this.logger.log(
+      `[SIMULADO] Reclamo nuevo para ${correo} -> ${detalle.reclamoId} (${detalle.tipo}, ${detalle.ruta})`,
+    );
+    return Promise.resolve();
+  }
+
+  enviarReclamoResuelto(
+    correo: string,
+    detalle: { reclamoId: string; estado: string },
+  ): Promise<void> {
+    this.logger.log(
+      `[SIMULADO] Reclamo ${detalle.reclamoId} ${detalle.estado} -> aviso a ${correo}`,
+    );
+    return Promise.resolve();
+  }
+
   async enviarVerificacionCorreo(correo: string, tokenPlano: string): Promise<void> {
     const link = `https://colombus.ec/verificar-correo?token=${tokenPlano}`;
     this.logger.log(

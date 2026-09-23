@@ -6,6 +6,15 @@ import type { AdjuntoCorreo, NotificadorEmail } from '../../dominio/auth/auth.po
 const REMITENTE = 'Klumbus <notificaciones@klumbustech.com>';
 const URL_FRONTEND = 'https://klumbustech.com';
 
+/** El texto de reclamos lo escribe un usuario: se escapa antes de ir dentro del HTML del correo. */
+function escaparHtml(texto: string): string {
+  return texto
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function plantillaBase(tituloHtml: string, cuerpoHtml: string): string {
   // HTML de correo simple con estilos inline a propósito -- la mayoría
   // de clientes de correo (Gmail, Outlook) ignoran o mutilan <style> en
@@ -122,6 +131,78 @@ export class ResendNotificador implements NotificadorEmail {
             </a>
           </p>`
           }
+        `,
+      ),
+    });
+  }
+
+  async enviarReclamoNuevo(
+    correo: string,
+    detalle: {
+      reclamoId: string;
+      tipo: string;
+      descripcion: string;
+      pasajeroNombre: string;
+      ruta: string;
+      fechaSalida: string;
+    },
+  ): Promise<void> {
+    await this.enviar({
+      from: REMITENTE,
+      to: correo,
+      subject: 'Nuevo reclamo de un pasajero — Klumbus',
+      html: plantillaBase(
+        'Tienes un reclamo nuevo',
+        `
+          <table style="width:100%; font-size:14px; margin: 16px 0; border-collapse: collapse;">
+            <tr><td style="padding:6px 0; color:#6b7280;">Pasajero</td><td style="padding:6px 0; text-align:right;">${escaparHtml(detalle.pasajeroNombre)}</td></tr>
+            <tr><td style="padding:6px 0; color:#6b7280;">Viaje</td><td style="padding:6px 0; text-align:right;">${escaparHtml(detalle.ruta)} · ${escaparHtml(detalle.fechaSalida)}</td></tr>
+            <tr><td style="padding:6px 0; color:#6b7280;">Tipo</td><td style="padding:6px 0; text-align:right;">${escaparHtml(detalle.tipo)}</td></tr>
+          </table>
+          <p style="font-size: 14px; line-height: 1.6; background:#f3f4f6; padding:12px; border-radius:8px; white-space:pre-wrap;">${escaparHtml(detalle.descripcion)}</p>
+          <p style="margin: 24px 0;">
+            <a href="${URL_FRONTEND}/panel-empresa/reclamos" style="background:#2451c4; color:#fff; padding:12px 24px; border-radius:8px; text-decoration:none; font-weight:600; font-size:14px; display:inline-block;">
+              Ver el reclamo
+            </a>
+          </p>
+        `,
+      ),
+    });
+  }
+
+  async enviarReclamoResuelto(
+    correo: string,
+    detalle: {
+      reclamoId: string;
+      estado: 'resuelto' | 'rechazado';
+      respuesta: string;
+      montoReconocido: number | null;
+      cooperativaNombre: string;
+      ruta: string;
+    },
+  ): Promise<void> {
+    const aFavor = detalle.estado === 'resuelto';
+    await this.enviar({
+      from: REMITENTE,
+      to: correo,
+      subject: 'Respuesta a tu reclamo — Klumbus',
+      html: plantillaBase(
+        aFavor ? 'Tu reclamo fue aceptado' : 'Tu reclamo fue revisado',
+        `
+          <p style="font-size: 14px; line-height: 1.6;">
+            ${escaparHtml(detalle.cooperativaNombre)} respondió tu reclamo del viaje ${escaparHtml(detalle.ruta)}.
+          </p>
+          <p style="font-size: 14px; line-height: 1.6; background:#f3f4f6; padding:12px; border-radius:8px; white-space:pre-wrap;">${escaparHtml(detalle.respuesta)}</p>
+          ${
+            aFavor && detalle.montoReconocido !== null
+              ? `<p style="font-size: 14px; line-height: 1.6;">Monto que la cooperativa reconoce devolverte: <strong>$${detalle.montoReconocido.toFixed(2)}</strong>. La devolución la coordina directamente la cooperativa.</p>`
+              : ''
+          }
+          <p style="margin: 24px 0;">
+            <a href="${URL_FRONTEND}/perfil?tab=reclamos" style="background:#2451c4; color:#fff; padding:12px 24px; border-radius:8px; text-decoration:none; font-weight:600; font-size:14px; display:inline-block;">
+              Ver mis reclamos
+            </a>
+          </p>
         `,
       ),
     });

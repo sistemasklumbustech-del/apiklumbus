@@ -381,3 +381,17 @@ export const estadoCompraEnum = pgEnum('estado_compra', [
   'reembolsada',
   'reversada',
 ]);
+
+/** Reclamos del pasajero (RF-019, 23-sep-2026) -- ver reclamos.ts para el contexto completo. */
+export const tipoReclamoEnum = pgEnum('tipo_reclamo', [
+  'cobro_reembolso',
+  'servicio_viaje',
+  'boleto_qr',
+]);
+
+export const estadoReclamoEnum = pgEnum('estado_reclamo', [
+  'abierto',
+  'en_revision',
+  'resuelto',
+  'rechazado',
+]);
