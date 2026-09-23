@@ -572,6 +572,21 @@ export interface UsuarioStaffResumen {
   activo: boolean;
 }
 
+/** Paginación real (22-sep-2026) -- único consumidor es esta pantalla, no hay dropdown que necesite la lista completa. */
+export interface FiltrosUsuariosStaff {
+  rol?: 'vendedor' | 'admin_cooperativa';
+  busqueda?: string;
+  pagina: number;
+  limite: number;
+}
+
+export interface ResultadoUsuariosStaff {
+  filas: UsuarioStaffResumen[];
+  total: number;
+  pagina: number;
+  limite: number;
+}
+
 export interface ConductorResumen {
   id: string;
   nombreCompleto: string;
@@ -579,6 +594,24 @@ export interface ConductorResumen {
   licenciaNumero: string | null;
   licenciaCategoria: string | null;
   telefono: string | null;
+}
+
+/**
+ * Paginación real (22-sep-2026) -- distinta de listarConductores
+ * (abajo), que se deja intacta porque Viajes la usa para su selector
+ * de conductor, que necesita la lista completa sin paginar.
+ */
+export interface FiltrosConductores {
+  busqueda?: string;
+  pagina: number;
+  limite: number;
+}
+
+export interface ResultadoConductores {
+  filas: ConductorResumen[];
+  total: number;
+  pagina: number;
+  limite: number;
 }
 
 /** Filtros del historial de ventas de la cooperativa (una fila por boleto). */
@@ -900,13 +933,25 @@ export interface PanelEmpresaRepositorio {
     cooperativaId: string,
     datos: DatosNuevoUsuarioStaff,
   ): Promise<{ usuarioId: string }>;
-  /** "Personal" (22-jul-2026) — antes se podía crear staff, pero no había forma de VER quién ya estaba registrado. */
-  listarUsuariosStaff(cooperativaId: string): Promise<UsuarioStaffResumen[]>;
+  /**
+   * "Personal" (22-jul-2026) — antes se podía crear staff, pero no
+   * había forma de VER quién ya estaba registrado. Paginación real
+   * (22-sep-2026): único consumidor, ver FiltrosUsuariosStaff.
+   */
+  listarUsuariosStaff(
+    cooperativaId: string,
+    filtros: FiltrosUsuariosStaff,
+  ): Promise<ResultadoUsuariosStaff>;
   crearConductor(
     cooperativaId: string,
     datos: DatosNuevoConductor,
   ): Promise<{ id: string }>;
   listarConductores(cooperativaId: string): Promise<ConductorResumen[]>;
+
+  buscarConductores(
+    cooperativaId: string,
+    filtros: FiltrosConductores,
+  ): Promise<ResultadoConductores>;
 
   /** Carga masiva — ver comentario de DatosImportacion arriba. */
   importarDatos(

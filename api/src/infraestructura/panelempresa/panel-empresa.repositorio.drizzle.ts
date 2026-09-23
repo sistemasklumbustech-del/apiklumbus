@@ -41,6 +41,10 @@ import type {
   DatosNuevoHorarioRuta,
   FiltrosVentas,
   ResultadoVentas,
+  FiltrosUsuariosStaff,
+  ResultadoUsuariosStaff,
+  FiltrosConductores,
+  ResultadoConductores,
 } from '../../dominio/panelempresa/panel-empresa.ports';
 
 /**
@@ -1169,30 +1173,63 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
     });
   }
 
-  async listarUsuariosStaff(cooperativaId: string) {
+  async listarUsuariosStaff(
+    cooperativaId: string,
+    filtros: FiltrosUsuariosStaff,
+  ): Promise<ResultadoUsuariosStaff> {
     return ejecutarComoCooperativa(this.db, cooperativaId, async (tx) => {
+      // Paginación real (22-sep-2026) -- antes esta consulta no tenía
+      // filtro ni LIMIT/OFFSET, solo el rol IN fijo.
+      const condiciones = [
+        sql`cooperativa_id = ${cooperativaId}`,
+        sql`rol IN ('vendedor', 'admin_cooperativa')`,
+      ];
+      if (filtros.rol) {
+        condiciones.push(sql`rol = ${filtros.rol}`);
+      }
+      const texto = filtros.busqueda?.trim();
+      if (texto) {
+        const patron = `%${texto}%`;
+        condiciones.push(
+          sql`(nombre_completo ILIKE ${patron} OR correo ILIKE ${patron})`,
+        );
+      }
+      const donde = sql.join(condiciones, sql` AND `);
+
+      const totalFilas = await tx.execute(sql`
+        SELECT COUNT(*)::int AS total FROM usuarios WHERE ${donde}
+      `);
+      const total = (totalFilas.rows[0] as { total: number }).total;
+
+      const offset = (filtros.pagina - 1) * filtros.limite;
       const filas = await tx.execute(sql`
         SELECT id, correo, nombre_completo, rol, activo
         FROM usuarios
-        WHERE cooperativa_id = ${cooperativaId} AND rol IN ('vendedor', 'admin_cooperativa')
+        WHERE ${donde}
         ORDER BY creado_en DESC
+        LIMIT ${filtros.limite} OFFSET ${offset}
       `);
-      return filas.rows.map((f) => {
-        const fila = f as {
-          id: string;
-          correo: string;
-          nombre_completo: string;
-          rol: 'vendedor' | 'admin_cooperativa';
-          activo: boolean;
-        };
-        return {
-          id: fila.id,
-          correo: fila.correo,
-          nombreCompleto: fila.nombre_completo,
-          rol: fila.rol,
-          activo: fila.activo,
-        };
-      });
+      return {
+        filas: filas.rows.map((f) => {
+          const fila = f as {
+            id: string;
+            correo: string;
+            nombre_completo: string;
+            rol: 'vendedor' | 'admin_cooperativa';
+            activo: boolean;
+          };
+          return {
+            id: fila.id,
+            correo: fila.correo,
+            nombreCompleto: fila.nombre_completo,
+            rol: fila.rol,
+            activo: fila.activo,
+          };
+        }),
+        total,
+        pagina: filtros.pagina,
+        limite: filtros.limite,
+      };
     });
   }
 
@@ -1236,6 +1273,63 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
           telefono: fila.telefono,
         };
       });
+    });
+  }
+
+  async buscarConductores(
+    cooperativaId: string,
+    filtros: FiltrosConductores,
+  ): Promise<ResultadoConductores> {
+    return ejecutarComoCooperativa(this.db, cooperativaId, async (tx) => {
+      // Paginación real (22-sep-2026) -- antes esta tabla de gestión
+      // usaba listarConductores (sin filtro ni límite); ese método se
+      // deja intacto para el selector de conductor de Viajes.
+      const condiciones = [sql`cooperativa_id = ${cooperativaId}`];
+      const texto = filtros.busqueda?.trim();
+      if (texto) {
+        const patron = `%${texto}%`;
+        condiciones.push(
+          sql`(nombre_completo ILIKE ${patron} OR cedula ILIKE ${patron} OR telefono ILIKE ${patron})`,
+        );
+      }
+      const donde = sql.join(condiciones, sql` AND `);
+
+      const totalFilas = await tx.execute(sql`
+        SELECT COUNT(*)::int AS total FROM conductores WHERE ${donde}
+      `);
+      const total = (totalFilas.rows[0] as { total: number }).total;
+
+      const offset = (filtros.pagina - 1) * filtros.limite;
+      const filas = await tx.execute(sql`
+        SELECT id, nombre_completo, cedula, licencia_numero, licencia_categoria, telefono
+        FROM conductores
+        WHERE ${donde}
+        ORDER BY creado_en DESC
+        LIMIT ${filtros.limite} OFFSET ${offset}
+      `);
+      return {
+        filas: filas.rows.map((f) => {
+          const fila = f as {
+            id: string;
+            nombre_completo: string;
+            cedula: string;
+            licencia_numero: string | null;
+            licencia_categoria: string | null;
+            telefono: string | null;
+          };
+          return {
+            id: fila.id,
+            nombreCompleto: fila.nombre_completo,
+            cedula: fila.cedula,
+            licenciaNumero: fila.licencia_numero,
+            licenciaCategoria: fila.licencia_categoria,
+            telefono: fila.telefono,
+          };
+        }),
+        total,
+        pagina: filtros.pagina,
+        limite: filtros.limite,
+      };
     });
   }
 

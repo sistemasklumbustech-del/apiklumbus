@@ -11,6 +11,8 @@ import type {
   FiltrosViajes,
   FiltrosRutas,
   FiltrosUnidades,
+  FiltrosUsuariosStaff,
+  FiltrosConductores,
   DatosNuevoTipoVehiculo,
   DatosNuevaUnidad,
   DatosEditarTipoVehiculo,
@@ -299,8 +301,8 @@ export class PanelEmpresaService {
     return this.panel.crearUsuarioStaff(cooperativaId, datos);
   }
 
-  listarUsuariosStaff(cooperativaId: string) {
-    return this.panel.listarUsuariosStaff(cooperativaId);
+  listarUsuariosStaff(cooperativaId: string, filtros: FiltrosUsuariosStaff) {
+    return this.panel.listarUsuariosStaff(cooperativaId, filtros);
   }
 
   crearConductor(cooperativaId: string, datos: DatosNuevoConductor) {
@@ -309,6 +311,10 @@ export class PanelEmpresaService {
 
   listarConductores(cooperativaId: string) {
     return this.panel.listarConductores(cooperativaId);
+  }
+
+  buscarConductores(cooperativaId: string, filtros: FiltrosConductores) {
+    return this.panel.buscarConductores(cooperativaId, filtros);
   }
 
   /**

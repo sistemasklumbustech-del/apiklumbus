@@ -628,3 +628,57 @@ export class BuscarUnidadesDto {
   @Max(200)
   limite?: number;
 }
+
+/**
+ * Paginación real (22-sep-2026) -- único consumidor de este endpoint
+ * (Personal), no hay ningún dropdown que necesite la lista completa.
+ */
+export class ConsultarUsuariosStaffDto {
+  @IsOptional()
+  @IsIn(['vendedor', 'admin_cooperativa'])
+  rol?: 'vendedor' | 'admin_cooperativa';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  busqueda?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pagina?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limite?: number;
+}
+
+/**
+ * Paginación real (22-sep-2026) -- distinta de GET /coop/conductores
+ * (sin filtros, se deja intacta porque la usa el selector de
+ * conductor de Viajes). Esta es para la tabla de gestión, en
+ * GET /coop/conductores/buscar.
+ */
+export class BuscarConductoresDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  busqueda?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pagina?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limite?: number;
+}

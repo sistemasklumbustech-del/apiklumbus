@@ -36,6 +36,8 @@ import {
   ConsultarViajesDto,
   BuscarRutasDto,
   BuscarUnidadesDto,
+  ConsultarUsuariosStaffDto,
+  BuscarConductoresDto,
   EditarViajeDto,
   ActualizarEstadoUnidadDto,
   VerificarMenorDto,
@@ -483,8 +485,16 @@ export class PanelEmpresaController {
 
   @Roles('admin_cooperativa')
   @Get('usuarios')
-  async listarUsuariosStaff(@Request() req: { user: PayloadToken }) {
-    return this.panel.listarUsuariosStaff(cooperativaDelToken(req.user));
+  async listarUsuariosStaff(
+    @Query() dto: ConsultarUsuariosStaffDto,
+    @Request() req: { user: PayloadToken },
+  ) {
+    return this.panel.listarUsuariosStaff(cooperativaDelToken(req.user), {
+      rol: dto.rol,
+      busqueda: dto.busqueda,
+      pagina: dto.pagina ?? 1,
+      limite: dto.limite ?? 25,
+    });
   }
 
   @Roles('admin_cooperativa')
@@ -500,6 +510,20 @@ export class PanelEmpresaController {
   @Get('conductores')
   async listarConductores(@Request() req: { user: PayloadToken }) {
     return this.panel.listarConductores(cooperativaDelToken(req.user));
+  }
+
+  /** Tabla de gestión con filtro y paginación real -- ver el comentario de BuscarConductoresDto. */
+  @Roles('admin_cooperativa')
+  @Get('conductores/buscar')
+  async buscarConductores(
+    @Query() dto: BuscarConductoresDto,
+    @Request() req: { user: PayloadToken },
+  ) {
+    return this.panel.buscarConductores(cooperativaDelToken(req.user), {
+      busqueda: dto.busqueda,
+      pagina: dto.pagina ?? 1,
+      limite: dto.limite ?? 25,
+    });
   }
 
   /**
