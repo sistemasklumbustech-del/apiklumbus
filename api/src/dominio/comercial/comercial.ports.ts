@@ -66,6 +66,23 @@ export interface LeadResumen {
   creadoEn: Date;
 }
 
+/** Paginación real (22-sep-2026) -- antes listarLeads devolvía todos los leads sin filtros. */
+export interface FiltrosLeads {
+  estado?: EstadoLead;
+  busqueda?: string;
+  desde?: string;
+  hasta?: string;
+  pagina: number;
+  limite: number;
+}
+
+export interface ResultadoLeads {
+  filas: LeadResumen[];
+  total: number;
+  pagina: number;
+  limite: number;
+}
+
 export type FormatoCreatividad = 'imagen_texto' | 'imagen_texto_video';
 
 /** RF-COMM-004 -- campana publicitaria concreta. Nace en 'pendiente_revision', nunca 'activa' directamente. */
@@ -123,7 +140,7 @@ export interface ComercialRepositorio {
 
   /** RF-COMM-003 -- publico, sin login. */
   crearLead(datos: DatosNuevoLead): Promise<{ id: string }>;
-  listarLeads(): Promise<LeadResumen[]>;
+  listarLeads(filtros: FiltrosLeads): Promise<ResultadoLeads>;
   actualizarEstadoLead(
     id: string,
     datos: { estado?: EstadoLead; notasSeguimiento?: string },

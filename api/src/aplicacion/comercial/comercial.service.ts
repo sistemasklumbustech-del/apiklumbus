@@ -6,6 +6,7 @@ import type {
   DatosNuevoLead,
   DatosNuevaCampana,
   EstadoLead,
+  FiltrosLeads,
 } from '../../dominio/comercial/comercial.ports';
 
 export const COMERCIAL_REPOSITORIO = 'COMERCIAL_REPOSITORIO';
@@ -37,8 +38,8 @@ export class ComercialService {
     return this.comercial.crearLead(datos);
   }
 
-  listarLeads() {
-    return this.comercial.listarLeads();
+  listarLeads(filtros: FiltrosLeads) {
+    return this.comercial.listarLeads(filtros);
   }
 
   actualizarEstadoLead(

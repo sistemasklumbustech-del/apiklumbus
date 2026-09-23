@@ -1,5 +1,5 @@
 ﻿import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, eq, gte, lte } from 'drizzle-orm';
+import { and, eq, gte, lte, ilike, or, desc, count, SQL } from 'drizzle-orm';
 import {
   espaciosPublicitarios,
   planesComerciales,
@@ -17,7 +17,8 @@ import type {
   DatosNuevaCampana,
   EspacioPublicitarioResumen,
   PlanComercialResumen,
-  LeadResumen,
+  FiltrosLeads,
+  ResultadoLeads,
   CampanaResumen,
   CampanaActiva,
   MetricaDia,
@@ -100,19 +101,73 @@ export class ComercialRepositorioDrizzle implements ComercialRepositorio {
     return { id: fila.id };
   }
 
-  async listarLeads(): Promise<LeadResumen[]> {
-    const filas = await this.db.select().from(leadsAnunciantes);
-    return filas.map((f) => ({
-      id: f.id,
-      nombreEmpresa: f.nombreEmpresa,
-      contactoNombre: f.contactoNombre,
-      contactoCorreo: f.contactoCorreo,
-      contactoTelefono: f.contactoTelefono,
-      mensaje: f.mensaje,
-      estado: f.estado as EstadoLead,
-      notasSeguimiento: f.notasSeguimiento,
-      creadoEn: f.creadoEn,
-    }));
+  async listarLeads(filtros: FiltrosLeads): Promise<ResultadoLeads> {
+    // Paginación real (22-sep-2026) -- antes esta consulta no tenía
+    // WHERE ni LIMIT/OFFSET: traía absolutamente todos los leads que
+    // hubiera entrado alguna vez desde "Anuncia con Klumbus".
+    const condiciones: SQL[] = [];
+    if (filtros.estado) {
+      condiciones.push(eq(leadsAnunciantes.estado, filtros.estado));
+    }
+    if (filtros.desde) {
+      condiciones.push(
+        gte(
+          leadsAnunciantes.creadoEn,
+          new Date(`${filtros.desde}T00:00:00-05:00`),
+        ),
+      );
+    }
+    if (filtros.hasta) {
+      condiciones.push(
+        lte(
+          leadsAnunciantes.creadoEn,
+          new Date(`${filtros.hasta}T23:59:59-05:00`),
+        ),
+      );
+    }
+    const texto = filtros.busqueda?.trim();
+    if (texto) {
+      const patron = `%${texto}%`;
+      condiciones.push(
+        or(
+          ilike(leadsAnunciantes.nombreEmpresa, patron),
+          ilike(leadsAnunciantes.contactoNombre, patron),
+          ilike(leadsAnunciantes.contactoCorreo, patron),
+        )!,
+      );
+    }
+    const donde = condiciones.length > 0 ? and(...condiciones) : undefined;
+
+    const [{ total }] = await this.db
+      .select({ total: count() })
+      .from(leadsAnunciantes)
+      .where(donde);
+
+    const offset = (filtros.pagina - 1) * filtros.limite;
+    const filas = await this.db
+      .select()
+      .from(leadsAnunciantes)
+      .where(donde)
+      .orderBy(desc(leadsAnunciantes.creadoEn))
+      .limit(filtros.limite)
+      .offset(offset);
+
+    return {
+      filas: filas.map((f) => ({
+        id: f.id,
+        nombreEmpresa: f.nombreEmpresa,
+        contactoNombre: f.contactoNombre,
+        contactoCorreo: f.contactoCorreo,
+        contactoTelefono: f.contactoTelefono,
+        mensaje: f.mensaje,
+        estado: f.estado as EstadoLead,
+        notasSeguimiento: f.notasSeguimiento,
+        creadoEn: f.creadoEn,
+      })),
+      total,
+      pagina: filtros.pagina,
+      limite: filtros.limite,
+    };
   }
 
   async actualizarEstadoLead(

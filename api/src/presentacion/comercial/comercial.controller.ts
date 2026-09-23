@@ -5,6 +5,7 @@ import {
   Patch,
   Post,
   Param,
+  Query,
   Request,
   UseGuards,
   BadRequestException,
@@ -13,6 +14,7 @@ import { ComercialService } from '../../aplicacion/comercial/comercial.service';
 import {
   CrearEspacioPublicitarioDto,
   CrearPlanComercialDto,
+  ConsultarLeadsDto,
   ActualizarEstadoLeadDto,
   CrearCampanaDto,
 } from './dto/comercial.dto';
@@ -51,8 +53,15 @@ export class ComercialController {
   }
 
   @Get('leads')
-  async listarLeads() {
-    return this.comercial.listarLeads();
+  async listarLeads(@Query() dto: ConsultarLeadsDto) {
+    return this.comercial.listarLeads({
+      estado: dto.estado,
+      busqueda: dto.busqueda,
+      desde: dto.desde,
+      hasta: dto.hasta,
+      pagina: dto.pagina ?? 1,
+      limite: dto.limite ?? 25,
+    });
   }
 
   @Patch('leads/:id')
