@@ -53,6 +53,7 @@ import {
   CancelarViajesMasivoDto,
   ConfirmarDatosCooperativaDto,
   ProponerPuntoOperacionDto,
+  RangoDashboardDto,
 } from './dto/panel-empresa.dto';
 import {
   GuardarMetodoPagoDto,
@@ -554,8 +555,27 @@ export class PanelEmpresaController {
   /** RF-COOP-004 */
   @Roles('admin_cooperativa')
   @Get('dashboard')
-  async dashboard(@Request() req: { user: PayloadToken }) {
-    return this.panel.dashboardVentasDelDia(cooperativaDelToken(req.user));
+  async dashboard(
+    @Request() req: { user: PayloadToken },
+    @Query() dto: RangoDashboardDto,
+  ) {
+    return this.panel.dashboardVentasDelDia(cooperativaDelToken(req.user), {
+      desde: dto.desde,
+      hasta: dto.hasta,
+    });
+  }
+
+  /** Consolidado por día (para ver el mes completo o cualquier período). */
+  @Roles('admin_cooperativa')
+  @Get('dashboard/por-dia')
+  async dashboardPorDia(
+    @Request() req: { user: PayloadToken },
+    @Query() dto: RangoDashboardDto,
+  ) {
+    return this.panel.dashboardVentasPorDia(cooperativaDelToken(req.user), {
+      desde: dto.desde,
+      hasta: dto.hasta,
+    });
   }
 
   /** Perfil visual de la cooperativa â€” hoy solo el logo (22-jul-2026). */

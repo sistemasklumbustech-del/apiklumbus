@@ -682,3 +682,19 @@ export class BuscarConductoresDto {
   @Max(200)
   limite?: number;
 }
+
+/** Rango del dashboard de ventas (23-sep-2026) -- sin rango = hoy. */
+export class RangoDashboardDto {
+  /** YYYY-MM-DD, hora de Ecuador. */
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'desde debe tener formato YYYY-MM-DD.',
+  })
+  desde?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'hasta debe tener formato YYYY-MM-DD.',
+  })
+  hasta?: string;
+}

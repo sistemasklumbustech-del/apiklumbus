@@ -12,6 +12,8 @@ import type {
   DatosLegalesCooperativa,
   FiltrosCredencialesApi,
   ResultadoCredencialesApi,
+  RangoDashboard,
+  FilaVentaPorDia,
   Amenidad,
   DatosNuevaUnidad,
   DatosEditarTipoVehiculo,
@@ -1460,8 +1462,52 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
     }
   }
 
+  /**
+   * Fecha de venta = día calendario de Ecuador. Antes usaba
+   * `creado_en >= CURRENT_DATE` (día del servidor de base de datos, en
+   * UTC), y una venta hecha después de las 19:00 en Ecuador ya contaba
+   * como del día siguiente. Sin rango, "hoy" es el de Ecuador.
+   */
+  private condicionRangoVentas(rango?: RangoDashboard): SQL {
+    const hoy = sql`(now() AT TIME ZONE 'America/Guayaquil')::date`;
+    const desde = rango?.desde ? sql`${rango.desde}::date` : hoy;
+    const hasta = rango?.hasta ? sql`${rango.hasta}::date` : hoy;
+    return sql`(b.creado_en AT TIME ZONE 'America/Guayaquil')::date BETWEEN ${desde} AND ${hasta}`;
+  }
+
+  async dashboardVentasPorDia(
+    cooperativaId: string,
+    rango?: RangoDashboard,
+  ): Promise<FilaVentaPorDia[]> {
+    return ejecutarComoCooperativa(this.db, cooperativaId, async (tx) => {
+      const resultado = await tx.execute(sql`
+        SELECT (b.creado_en AT TIME ZONE 'America/Guayaquil')::date::text AS fecha,
+               COUNT(b.id)::int AS total_boletos,
+               COALESCE(SUM(b.precio_pagado), 0)::float AS total_ventas
+        FROM boletos b
+        WHERE b.cooperativa_id = ${cooperativaId}
+          AND ${this.condicionRangoVentas(rango)}
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `);
+      return resultado.rows.map((fila) => {
+        const f = fila as {
+          fecha: string;
+          total_boletos: number;
+          total_ventas: number;
+        };
+        return {
+          fecha: f.fecha,
+          totalBoletos: f.total_boletos,
+          totalVentas: f.total_ventas,
+        };
+      });
+    });
+  }
+
   async dashboardVentasDelDia(
     cooperativaId: string,
+    rango?: RangoDashboard,
   ): Promise<FilaVentaDelDia[]> {
     return ejecutarComoCooperativa(this.db, cooperativaId, async (tx) => {
       const resultado = await tx.execute(sql`
@@ -1480,8 +1526,9 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
         JOIN puntos_operacion dest ON dest.id = r.destino_punto_operacion_id
         LEFT JOIN usuarios u ON u.id = co.vendedor_usuario_id
         WHERE b.cooperativa_id = ${cooperativaId}
-          AND b.creado_en >= CURRENT_DATE
+          AND ${this.condicionRangoVentas(rango)}
         GROUP BY r.id, r.nombre, ori.ciudad, dest.ciudad, u.nombre_completo
+        ORDER BY total_ventas DESC
       `);
       return resultado.rows.map((fila) => {
         const f = fila as {

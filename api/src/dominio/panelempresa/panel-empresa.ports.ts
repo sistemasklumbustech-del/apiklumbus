@@ -447,6 +447,19 @@ export interface FilaVentaDelDia {
   totalVentas: number;
 }
 
+/** Ventas consolidadas de un solo día (fecha en hora de Ecuador, YYYY-MM-DD). */
+export interface FilaVentaPorDia {
+  fecha: string;
+  totalBoletos: number;
+  totalVentas: number;
+}
+
+export interface RangoDashboard {
+  /** YYYY-MM-DD, hora de Ecuador. Si falta, se usa el día de hoy. */
+  desde?: string;
+  hasta?: string;
+}
+
 export interface ResultadoValidacionQr {
   valido: boolean;
   mensaje: string;
@@ -973,8 +986,20 @@ export interface PanelEmpresaRepositorio {
     datos: DatosImportacion,
   ): Promise<ResultadoImportacionRepo>;
 
-  /** RF-COOP-004 — dashboard de ventas del día, tenant-scoped de verdad. */
-  dashboardVentasDelDia(cooperativaId: string): Promise<FilaVentaDelDia[]>;
+  /**
+   * RF-COOP-004 — dashboard de ventas, tenant-scoped de verdad. Sin
+   * rango = hoy (hora de Ecuador); con rango, cualquier día o período.
+   */
+  dashboardVentasDelDia(
+    cooperativaId: string,
+    rango?: RangoDashboard,
+  ): Promise<FilaVentaDelDia[]>;
+
+  /** Consolidado por día dentro de un rango (para ver el mes completo). */
+  dashboardVentasPorDia(
+    cooperativaId: string,
+    rango?: RangoDashboard,
+  ): Promise<FilaVentaPorDia[]>;
 
   /** Perfil visual de la cooperativa — hoy solo el logo (22-jul-2026). */
   obtenerPerfil(cooperativaId: string): Promise<{ logoUrl: string | null }>;

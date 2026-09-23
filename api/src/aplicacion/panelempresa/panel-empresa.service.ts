@@ -27,6 +27,7 @@ import type {
   DatosNuevoHorarioRuta,
   DatosLegalesCooperativa,
   FiltrosCredencialesApi,
+  RangoDashboard,
 } from '../../dominio/panelempresa/panel-empresa.ports';
 import {
   validarDistribucionAsientos,
@@ -349,8 +350,35 @@ export class PanelEmpresaService {
     return { ...resto, viajesGenerados };
   }
 
-  dashboardVentasDelDia(cooperativaId: string) {
-    return this.panel.dashboardVentasDelDia(cooperativaId);
+  dashboardVentasDelDia(cooperativaId: string, rango?: RangoDashboard) {
+    this.validarRango(rango);
+    return this.panel.dashboardVentasDelDia(cooperativaId, rango);
+  }
+
+  dashboardVentasPorDia(cooperativaId: string, rango?: RangoDashboard) {
+    this.validarRango(rango);
+    return this.panel.dashboardVentasPorDia(cooperativaId, rango);
+  }
+
+  /** Rango coherente y acotado (máx. 366 días) para no armar consultas enormes. */
+  private validarRango(rango?: RangoDashboard) {
+    if (!rango?.desde && !rango?.hasta) return;
+    if (!rango.desde || !rango.hasta) {
+      throw new BadRequestException('Indica la fecha desde y la fecha hasta.');
+    }
+    const desde = Date.parse(`${rango.desde}T00:00:00Z`);
+    const hasta = Date.parse(`${rango.hasta}T00:00:00Z`);
+    if (Number.isNaN(desde) || Number.isNaN(hasta)) {
+      throw new BadRequestException('Las fechas no son válidas.');
+    }
+    if (desde > hasta) {
+      throw new BadRequestException(
+        'La fecha "desde" no puede ser posterior a "hasta".',
+      );
+    }
+    if ((hasta - desde) / 86400000 > 366) {
+      throw new BadRequestException('El rango máximo es de 366 días.');
+    }
   }
 
   obtenerPerfil(cooperativaId: string) {
