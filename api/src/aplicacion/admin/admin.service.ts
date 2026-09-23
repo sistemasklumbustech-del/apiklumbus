@@ -11,6 +11,7 @@ import type {
   ResultadoConciliacion,
   FiltrosCooperativas,
   FiltrosPuntosOperacion,
+  FiltrosAdministradores,
 } from '../../dominio/admin/admin.ports';
 import { calcularDiscrepancias } from '../../dominio/admin/conciliacion.util';
 
@@ -187,8 +188,8 @@ export class AdminService {
     return this.admin.crearAdministrador(datos, creadoPorUsuarioId);
   }
 
-  async listarAdministradores() {
-    return this.admin.listarAdministradores();
+  async listarAdministradores(filtros: FiltrosAdministradores) {
+    return this.admin.listarAdministradores(filtros);
   }
 
   async eliminarAdministrador(id: string, eliminadoPorUsuarioId: string) {

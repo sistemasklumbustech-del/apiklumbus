@@ -4,7 +4,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Inject } from '@nestjs/common';
-import { sql, eq, inArray, SQL } from 'drizzle-orm';
+import {
+  sql,
+  eq,
+  inArray,
+  and,
+  or,
+  ilike,
+  desc,
+  count,
+  SQL,
+} from 'drizzle-orm';
 import {
   cooperativas,
   usuarios,
@@ -30,6 +40,8 @@ import type {
   ResultadoCooperativas,
   FiltrosPuntosOperacion,
   ResultadoPuntosOperacion,
+  FiltrosAdministradores,
+  ResultadoAdministradores,
 } from '../../dominio/admin/admin.ports';
 
 /**
@@ -751,7 +763,34 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
     return { id: fila.id };
   }
 
-  async listarAdministradores(): Promise<AdministradorResumen[]> {
+  async listarAdministradores(
+    filtros: FiltrosAdministradores,
+  ): Promise<ResultadoAdministradores> {
+    // Paginación real (23-sep-2026).
+    const condiciones: SQL[] = [
+      filtros.rol
+        ? eq(usuarios.rol, filtros.rol)
+        : inArray(usuarios.rol, ['admin_plataforma', 'super_admin']),
+    ];
+    if (filtros.activo !== undefined) {
+      condiciones.push(eq(usuarios.activo, filtros.activo));
+    }
+    const texto = filtros.busqueda?.trim();
+    if (texto) {
+      const patron = `%${texto}%`;
+      const busqueda = or(
+        ilike(usuarios.nombreCompleto, patron),
+        ilike(usuarios.correo, patron),
+      );
+      if (busqueda) condiciones.push(busqueda);
+    }
+    const donde = and(...condiciones);
+
+    const [{ total }] = await this.db
+      .select({ total: count() })
+      .from(usuarios)
+      .where(donde);
+
     const filas = await this.db
       .select({
         id: usuarios.id,
@@ -762,8 +801,16 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
         creadoEn: usuarios.creadoEn,
       })
       .from(usuarios)
-      .where(inArray(usuarios.rol, ['admin_plataforma', 'super_admin']));
-    return filas as unknown as AdministradorResumen[];
+      .where(donde)
+      .orderBy(desc(usuarios.creadoEn))
+      .limit(filtros.limite)
+      .offset((filtros.pagina - 1) * filtros.limite);
+    return {
+      filas: filas as unknown as AdministradorResumen[],
+      total,
+      pagina: filtros.pagina,
+      limite: filtros.limite,
+    };
   }
 
   /**

@@ -27,6 +27,7 @@ import {
   ConciliacionQueryDto,
   BuscarCooperativasDto,
   ConsultarPuntosOperacionDto,
+  ConsultarAdministradoresDto,
 } from './dto/admin.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -284,8 +285,14 @@ export class AdminController {
 
   /** Compartido -- ver un admin de menor rango no es tan sensible como crearlo o eliminarlo. */
   @Get('administradores')
-  async listarAdministradores() {
-    return this.admin.listarAdministradores();
+  async listarAdministradores(@Query() dto: ConsultarAdministradoresDto) {
+    return this.admin.listarAdministradores({
+      rol: dto.rol,
+      activo: dto.activo,
+      busqueda: dto.busqueda,
+      pagina: dto.pagina ?? 1,
+      limite: dto.limite ?? 25,
+    });
   }
 
   @Roles('super_admin')

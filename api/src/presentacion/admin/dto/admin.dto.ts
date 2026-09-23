@@ -331,3 +331,33 @@ export class ConsultarPuntosOperacionDto {
   @Max(200)
   limite?: number;
 }
+
+/** Paginación real (23-sep-2026) -- GET /admin/administradores. */
+export class ConsultarAdministradoresDto {
+  @IsOptional()
+  @IsIn(['admin_plataforma', 'super_admin'])
+  rol?: 'admin_plataforma' | 'super_admin';
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  activo?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  busqueda?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pagina?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limite?: number;
+}

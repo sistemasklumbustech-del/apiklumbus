@@ -60,6 +60,21 @@ export interface DatosNuevoAdministrador {
   rol: 'admin_plataforma' | 'super_admin';
 }
 
+export interface FiltrosAdministradores {
+  rol?: 'admin_plataforma' | 'super_admin';
+  activo?: boolean;
+  busqueda?: string;
+  pagina: number;
+  limite: number;
+}
+
+export interface ResultadoAdministradores {
+  filas: AdministradorResumen[];
+  total: number;
+  pagina: number;
+  limite: number;
+}
+
 export interface AdministradorResumen {
   id: string;
   correo: string;
@@ -337,7 +352,9 @@ export interface AdminRepositorio {
     creadoPorUsuarioId: string,
   ): Promise<{ id: string }>;
   /** Compartido -- ver un admin de menor rango no es tan sensible como crearlo o eliminarlo. */
-  listarAdministradores(): Promise<AdministradorResumen[]>;
+  listarAdministradores(
+    filtros: FiltrosAdministradores,
+  ): Promise<ResultadoAdministradores>;
   eliminarAdministrador(
     id: string,
     eliminadoPorUsuarioId: string,
