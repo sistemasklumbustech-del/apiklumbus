@@ -56,7 +56,11 @@ import {
 } from './dto/panel-empresa.dto';
 import { GuardarMetodoPagoDto, ConfirmarPagoManualDto, MarcarFacturaEmitidaDto } from './dto/metodos-pago.dto';
 import { VenderEnVentanillaDto, CotizarVentanillaDto } from './dto/venta-ventanilla.dto';
-import { CrearCredencialApiDto, ActualizarWebhookCredencialApiDto } from './dto/credenciales-api.dto';
+import {
+  CrearCredencialApiDto,
+  ActualizarWebhookCredencialApiDto,
+  ConsultarCredencialesApiDto,
+} from './dto/credenciales-api.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard, Roles } from '../auth/guards/roles.guard';
 import { PayloadToken } from '../../dominio/auth/auth.ports';
@@ -730,8 +734,16 @@ export class PanelEmpresaController {
    */
   @Roles('admin_cooperativa')
   @Get('credenciales-api')
-  async listarCredencialesApi(@Request() req: { user: PayloadToken }) {
-    return this.panel.listarCredencialesApi(cooperativaDelToken(req.user));
+  async listarCredencialesApi(
+    @Request() req: { user: PayloadToken },
+    @Query() dto: ConsultarCredencialesApiDto,
+  ) {
+    return this.panel.listarCredencialesApi(cooperativaDelToken(req.user), {
+      activo: dto.activo,
+      busqueda: dto.busqueda,
+      pagina: dto.pagina ?? 1,
+      limite: dto.limite ?? 25,
+    });
   }
 
   @Roles('admin_cooperativa')

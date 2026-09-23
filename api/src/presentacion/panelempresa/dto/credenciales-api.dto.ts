@@ -1,4 +1,14 @@
-import { IsOptional, IsUrl, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUrl,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 
 /**
  * Credenciales API — Modelo B (02-ago-2026). webhookUrl es opcional al
@@ -17,4 +27,30 @@ export class ActualizarWebhookCredencialApiDto {
   @IsOptional()
   @IsString()
   webhookUrl?: string;
+}
+
+/** Paginación real (23-sep-2026) -- GET /coop/credenciales-api. */
+export class ConsultarCredencialesApiDto {
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  activo?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  busqueda?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pagina?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limite?: number;
 }

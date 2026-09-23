@@ -10,6 +10,8 @@ import type {
   PanelEmpresaRepositorio,
   DatosNuevoTipoVehiculo,
   DatosLegalesCooperativa,
+  FiltrosCredencialesApi,
+  ResultadoCredencialesApi,
   Amenidad,
   DatosNuevaUnidad,
   DatosEditarTipoVehiculo,
@@ -1741,15 +1743,39 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
     return { apiKeyPrefix, apiKeyHash, apiKeyCompleta };
   }
 
-  async listarCredencialesApi(cooperativaId: string): Promise<CredencialApiCooperativa[]> {
+  async listarCredencialesApi(
+    cooperativaId: string,
+    filtros: FiltrosCredencialesApi,
+  ): Promise<ResultadoCredencialesApi> {
+    // Paginación real (23-sep-2026).
     return ejecutarComoCooperativa(this.db, cooperativaId, async (tx) => {
+      const condiciones: SQL[] = [sql`cooperativa_id = ${cooperativaId}`];
+      if (filtros.activo !== undefined) {
+        condiciones.push(sql`activo = ${filtros.activo}`);
+      }
+      const texto = filtros.busqueda?.trim();
+      if (texto) {
+        const patron = `%${texto}%`;
+        condiciones.push(
+          sql`(api_key_prefix ILIKE ${patron} OR webhook_url ILIKE ${patron})`,
+        );
+      }
+      const donde = sql.join(condiciones, sql` AND `);
+
+      const totalFilas = await tx.execute(
+        sql`SELECT COUNT(*)::int AS total FROM credenciales_api WHERE ${donde}`,
+      );
+      const total = (totalFilas.rows[0] as { total: number }).total;
+
+      const offset = (filtros.pagina - 1) * filtros.limite;
       const resultado = await tx.execute(sql`
         SELECT id, tipo, api_key_prefix, webhook_url, activo, creado_en, revocado_en
         FROM credenciales_api
-        WHERE cooperativa_id = ${cooperativaId}
-        ORDER BY creado_en DESC
+        WHERE ${donde}
+        ORDER BY activo DESC, creado_en DESC
+        LIMIT ${filtros.limite} OFFSET ${offset}
       `);
-      return resultado.rows.map((fila) => {
+      const filas = resultado.rows.map((fila) => {
         const f = fila as {
           id: string;
           tipo: string;
@@ -1769,6 +1795,7 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
           revocadoEn: f.revocado_en,
         };
       });
+      return { filas, total, pagina: filtros.pagina, limite: filtros.limite };
     });
   }
 

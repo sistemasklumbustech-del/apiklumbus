@@ -62,6 +62,20 @@ export interface CredencialApiCooperativa {
   revocadoEn: string | null;
 }
 
+export interface FiltrosCredencialesApi {
+  activo?: boolean;
+  busqueda?: string;
+  pagina: number;
+  limite: number;
+}
+
+export interface ResultadoCredencialesApi {
+  filas: CredencialApiCooperativa[];
+  total: number;
+  pagina: number;
+  limite: number;
+}
+
 export interface CredencialApiRecienCreada {
   id: string;
   apiKeyPrefix: string;
@@ -1044,7 +1058,10 @@ export interface PanelEmpresaRepositorio {
    * webhookUrl -- la llave vieja deja de funcionar en el mismo momento
    * en que se genera la nueva, no hay ventana donde ambas sirvan.
    */
-  listarCredencialesApi(cooperativaId: string): Promise<CredencialApiCooperativa[]>;
+  listarCredencialesApi(
+    cooperativaId: string,
+    filtros: FiltrosCredencialesApi,
+  ): Promise<ResultadoCredencialesApi>;
   crearCredencialApi(
     cooperativaId: string,
     webhookUrl: string | null,

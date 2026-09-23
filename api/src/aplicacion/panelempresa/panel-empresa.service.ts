@@ -26,6 +26,7 @@ import type {
   DatosImportacion,
   DatosNuevoHorarioRuta,
   DatosLegalesCooperativa,
+  FiltrosCredencialesApi,
 } from '../../dominio/panelempresa/panel-empresa.ports';
 import {
   validarDistribucionAsientos,
@@ -449,8 +450,8 @@ export class PanelEmpresaService {
     return this.panel.eliminarMetodoPago(cooperativaId, metodoPagoId);
   }
 
-  listarCredencialesApi(cooperativaId: string) {
-    return this.panel.listarCredencialesApi(cooperativaId);
+  listarCredencialesApi(cooperativaId: string, filtros: FiltrosCredencialesApi) {
+    return this.panel.listarCredencialesApi(cooperativaId, filtros);
   }
 
   crearCredencialApi(cooperativaId: string, webhookUrl: string | null) {
