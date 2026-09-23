@@ -475,6 +475,25 @@ export interface RutaResumen {
   precioBaseReferencia: number;
 }
 
+/**
+ * Paginación real (22-sep-2026) -- distinta de listarRutas (arriba),
+ * que se deja intacta porque Viajes la usa para sus dos selectores
+ * (crear viaje y filtro de ruta), que necesitan la lista completa sin
+ * paginar. Esta es solo para la tabla de gestión de Rutas.
+ */
+export interface FiltrosRutas {
+  busqueda?: string;
+  pagina: number;
+  limite: number;
+}
+
+export interface ResultadoRutas {
+  filas: RutaResumen[];
+  total: number;
+  pagina: number;
+  limite: number;
+}
+
 export interface TipoVehiculoResumen {
   id: string;
   nombre: string;
@@ -712,6 +731,11 @@ export interface PanelEmpresaRepositorio {
   ): Promise<{ id: string }>;
   /** Rutas de la cooperativa, para elegir al armar un viaje o solo para revisar lo que ya existe. */
   listarRutas(cooperativaId: string): Promise<RutaResumen[]>;
+
+  buscarRutas(
+    cooperativaId: string,
+    filtros: FiltrosRutas,
+  ): Promise<ResultadoRutas>;
   /** Paradas intermedias de una ruta -- RF-COOP-002. */
   agregarParada(cooperativaId: string, datos: DatosNuevaParada): Promise<{ id: string }>;
   listarParadas(cooperativaId: string, rutaId: string): Promise<ParadaResumen[]>;

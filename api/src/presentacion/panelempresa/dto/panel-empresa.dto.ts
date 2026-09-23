@@ -573,3 +573,28 @@ export class ConfirmarDatosCooperativaDto {
   @IsOptional() @IsEmail() contactoCorreo?: string;
   @IsOptional() @IsString() contactoTelefono?: string;
 }
+
+/**
+ * Paginación real (22-sep-2026) -- distinta de GET /coop/rutas (sin
+ * filtros, se deja intacta porque la usan los selectores de Viajes).
+ * Esta es para la tabla de gestión, en GET /coop/rutas/buscar.
+ */
+export class BuscarRutasDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  busqueda?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pagina?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limite?: number;
+}

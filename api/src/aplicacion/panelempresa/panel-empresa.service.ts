@@ -9,6 +9,7 @@ import type {
   PanelEmpresaRepositorio,
   FiltrosVentas,
   FiltrosViajes,
+  FiltrosRutas,
   DatosNuevoTipoVehiculo,
   DatosNuevaUnidad,
   DatosEditarTipoVehiculo,
@@ -141,6 +142,10 @@ export class PanelEmpresaService {
 
   listarRutas(cooperativaId: string) {
     return this.panel.listarRutas(cooperativaId);
+  }
+
+  buscarRutas(cooperativaId: string, filtros: FiltrosRutas) {
+    return this.panel.buscarRutas(cooperativaId, filtros);
   }
 
   agregarParada(cooperativaId: string, datos: DatosNuevaParada) {

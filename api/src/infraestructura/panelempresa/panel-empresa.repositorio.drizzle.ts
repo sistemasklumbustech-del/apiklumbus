@@ -26,6 +26,8 @@ import type {
   FilaVentaDelDia,
   ResultadoValidacionQr,
   RutaResumen,
+  FiltrosRutas,
+  ResultadoRutas,
   TipoVehiculoResumen,
   UnidadResumen,
   FiltrosViajes,
@@ -325,6 +327,65 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
           precioBaseReferencia: Number(f.precio_base_referencia),
         };
       });
+    });
+  }
+
+  async buscarRutas(
+    cooperativaId: string,
+    filtros: FiltrosRutas,
+  ): Promise<ResultadoRutas> {
+    return ejecutarComoCooperativa(this.db, cooperativaId, async (tx) => {
+      // Paginación real (22-sep-2026) -- antes esta tabla de gestión
+      // usaba listarRutas (sin filtro ni límite); ese método se deja
+      // intacto para los selectores de Viajes, ver el comentario del
+      // puerto.
+      const condiciones = [sql`r.cooperativa_id = ${cooperativaId}`];
+      const texto = filtros.busqueda?.trim();
+      if (texto) {
+        const patron = `%${texto}%`;
+        condiciones.push(
+          sql`(r.nombre ILIKE ${patron} OR ori.ciudad ILIKE ${patron} OR dest.ciudad ILIKE ${patron})`,
+        );
+      }
+      const donde = sql.join(condiciones, sql` AND `);
+
+      const desdeJoins = sql`
+        FROM rutas r
+        JOIN puntos_operacion ori ON ori.id = r.origen_punto_operacion_id
+        JOIN puntos_operacion dest ON dest.id = r.destino_punto_operacion_id
+      `;
+
+      const totalFilas = await tx.execute(sql`
+        SELECT COUNT(*)::int AS total ${desdeJoins} WHERE ${donde}
+      `);
+      const total = (totalFilas.rows[0] as { total: number }).total;
+
+      const offset = (filtros.pagina - 1) * filtros.limite;
+      const resultado = await tx.execute(sql`
+        SELECT r.id, r.nombre, r.precio_base_referencia,
+               ori.ciudad AS origen_ciudad, dest.ciudad AS destino_ciudad
+        ${desdeJoins}
+        WHERE ${donde}
+        ORDER BY r.creado_en DESC
+        LIMIT ${filtros.limite} OFFSET ${offset}
+      `);
+      const filas = resultado.rows.map((fila) => {
+        const f = fila as {
+          id: string;
+          nombre: string | null;
+          precio_base_referencia: string;
+          origen_ciudad: string;
+          destino_ciudad: string;
+        };
+        return {
+          id: f.id,
+          nombre: f.nombre,
+          origenCiudad: f.origen_ciudad,
+          destinoCiudad: f.destino_ciudad,
+          precioBaseReferencia: Number(f.precio_base_referencia),
+        };
+      });
+      return { filas, total, pagina: filtros.pagina, limite: filtros.limite };
     });
   }
 

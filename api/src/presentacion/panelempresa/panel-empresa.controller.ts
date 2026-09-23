@@ -34,6 +34,7 @@ import {
   AsignarConductorViajeDto,
   ConsultarVentasDto,
   ConsultarViajesDto,
+  BuscarRutasDto,
   EditarViajeDto,
   ActualizarEstadoUnidadDto,
   VerificarMenorDto,
@@ -172,6 +173,20 @@ export class PanelEmpresaController {
   @Get('rutas')
   async listarRutas(@Request() req: { user: PayloadToken }) {
     return this.panel.listarRutas(cooperativaDelToken(req.user));
+  }
+
+  /** Tabla de gestión con filtro y paginación real -- ver el comentario de BuscarRutasDto. */
+  @Roles('admin_cooperativa', 'vendedor')
+  @Get('rutas/buscar')
+  async buscarRutas(
+    @Query() dto: BuscarRutasDto,
+    @Request() req: { user: PayloadToken },
+  ) {
+    return this.panel.buscarRutas(cooperativaDelToken(req.user), {
+      busqueda: dto.busqueda,
+      pagina: dto.pagina ?? 1,
+      limite: dto.limite ?? 25,
+    });
   }
 
   @Roles('admin_cooperativa')
