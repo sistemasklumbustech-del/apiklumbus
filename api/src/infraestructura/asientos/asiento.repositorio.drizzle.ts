@@ -33,6 +33,9 @@ export class AsientoRepositorioDrizzle implements AsientoRepositorio {
       .select({
         capacidadTotal: tiposVehiculo.capacidadTotal,
         distribucionAsientos: tiposVehiculo.distribucionAsientos,
+        tipoVehiculoNombre: tiposVehiculo.nombre,
+        tipoVehiculoCategoria: tiposVehiculo.categoria,
+        tipoVehiculoAmenidades: tiposVehiculo.amenidades,
         // Política de cancelación/reprogramación (29-jul-2026, hallazgo
         // real de negocio): el pasajero debe saber ANTES de comprar si
         // esta cooperativa permite cambios o devoluciones -- no
@@ -70,6 +73,9 @@ export class AsientoRepositorioDrizzle implements AsientoRepositorio {
       asientosNoDisponibles: noDisponibles,
       permiteCancelacion: viaje[0].permiteCancelacion,
       permiteReprogramacion: viaje[0].permiteReprogramacion,
+      tipoVehiculoNombre: viaje[0].tipoVehiculoNombre,
+      tipoVehiculoCategoria: viaje[0].tipoVehiculoCategoria,
+      tipoVehiculoAmenidades: viaje[0].tipoVehiculoAmenidades,
     };
   }
 

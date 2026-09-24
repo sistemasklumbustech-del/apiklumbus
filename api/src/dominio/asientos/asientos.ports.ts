@@ -22,6 +22,10 @@ export interface MapaAsientosViaje {
   /** Política de cancelación/reprogramación (29-jul-2026) — el pasajero debe saberlo ANTES de comprar. */
   permiteCancelacion: boolean;
   permiteReprogramacion: boolean;
+  /** Tipo de vehículo (24-sep-2026) -- para dibujar el mapa como el bus real: baño a bordo, etc. */
+  tipoVehiculoNombre: string;
+  tipoVehiculoCategoria: string | null;
+  tipoVehiculoAmenidades: string[];
 }
 
 export type ResultadoBloqueo =
