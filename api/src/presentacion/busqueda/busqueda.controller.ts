@@ -1,6 +1,9 @@
 import { Controller, Get, Query, Param, BadRequestException } from '@nestjs/common';
 import { BusquedaService } from '../../aplicacion/busqueda/busqueda.service';
-import { BuscarViajesDto } from './dto/buscar-viajes.dto';
+import {
+  BuscarViajesDto,
+  BuscarAlternativasDto,
+} from './dto/buscar-viajes.dto';
 import { BuscarPuntosOperacionDto } from './dto/buscar-puntos-operacion.dto';
 
 /** Item 11 (04-ago-2026) -- catalogo cerrado, mismo que enums.ts amenidadEnum. */
@@ -60,6 +63,17 @@ export class BusquedaController {
       horaHasta: query.horaHasta,
       tipoVehiculoId: query.tipoVehiculoId,
       amenidades,
+    });
+  }
+
+  /** Alternativas cuando una búsqueda no trae viajes (23-sep-2026) -- pública, igual que la búsqueda. */
+  @Get('viajes/alternativas')
+  async buscarAlternativas(@Query() query: BuscarAlternativasDto) {
+    return this.busqueda.buscarAlternativas({
+      origenId: query.origenId,
+      destinoId: query.destinoId,
+      fecha: query.fecha,
+      pasajerosMinimos: query.pasajeros ?? 1,
     });
   }
 

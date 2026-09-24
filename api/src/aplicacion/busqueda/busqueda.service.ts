@@ -302,6 +302,163 @@ export class BusquedaService {
       }));
   }
 
+  /**
+   * Alternativas cuando una búsqueda no encuentra viajes (23-sep-2026):
+   * (1) otras fechas próximas de la MISMA ruta (por ciudad, mismo criterio
+   * que buscarViajes), (2) otros destinos que sí salen de la misma ciudad
+   * de origen ese mismo día, y (3) qué cooperativas tienen la ruta
+   * publicada aunque hoy no tengan viajes. Solo cuenta viajes futuros,
+   * programados, de cooperativas aprobadas, con asientos libres para los
+   * pasajeros pedidos.
+   */
+  async buscarAlternativas(params: {
+    origenId: string;
+    destinoId: string;
+    fecha: string;
+    pasajerosMinimos: number;
+  }): Promise<{
+    fechasCercanas: {
+      fecha: string;
+      cantidadViajes: number;
+      precioDesde: number;
+      cooperativas: string[];
+    }[];
+    otrosDestinos: {
+      destinoId: string;
+      destinoCiudad: string;
+      cantidadViajes: number;
+      precioDesde: number;
+      cooperativas: string[];
+    }[];
+    cooperativasEnLaRuta: string[];
+  }> {
+    const { origenId, destinoId, fecha, pasajerosMinimos } = params;
+    const vacio = {
+      fechasCercanas: [],
+      otrosDestinos: [],
+      cooperativasEnLaRuta: [],
+    };
+
+    const ciudades = await this.db.execute(sql`
+      SELECT
+        (SELECT ciudad FROM puntos_operacion WHERE id = ${origenId}) AS origen_ciudad,
+        (SELECT ciudad FROM puntos_operacion WHERE id = ${destinoId}) AS destino_ciudad
+    `);
+    const c = ciudades.rows[0] as {
+      origen_ciudad: string | null;
+      destino_ciudad: string | null;
+    };
+    if (!c?.origen_ciudad || !c?.destino_ciudad) return vacio;
+
+    // Viajes reales y vendibles: futuros, programados, de una cooperativa
+    // aprobada y entre puntos aprobados, con su cupo libre calculado igual
+    // que en buscarViajes (capacidad total menos asientos no disponibles).
+    const viajesVendibles = sql`
+      SELECT v.fecha_salida AS fecha, v.precio_base::float AS precio,
+             co.nombre_comercial AS cooperativa,
+             ori.ciudad AS origen_ciudad, dest.ciudad AS destino_ciudad,
+             dest.id AS destino_id, dest.nombre AS destino_nombre
+      FROM viajes v
+      INNER JOIN rutas r ON r.id = v.ruta_id
+      INNER JOIN cooperativas co ON co.id = v.cooperativa_id
+      INNER JOIN unidades un ON un.id = v.unidad_id
+      INNER JOIN tipos_vehiculo tv ON tv.id = un.tipo_vehiculo_id
+      INNER JOIN puntos_operacion ori ON ori.id = r.origen_punto_operacion_id
+      INNER JOIN puntos_operacion dest ON dest.id = r.destino_punto_operacion_id
+      WHERE v.estado = 'programado'
+        AND co.estado = 'aprobada'
+        AND ori.estado = 'aprobado'
+        AND dest.estado = 'aprobado'
+        AND v.hora_salida_programada > now()
+        AND v.fecha_salida <= (now() AT TIME ZONE 'America/Guayaquil')::date + 45
+        AND (
+          tv.capacidad_total - (
+            SELECT count(*)::int FROM viaje_asientos va
+            WHERE va.viaje_id = v.id AND va.estado != 'disponible'
+          )
+        ) >= ${pasajerosMinimos}
+    `;
+
+    const fechas = await this.db.execute(sql`
+      WITH vendibles AS (${viajesVendibles})
+      SELECT fecha::text AS fecha, COUNT(*)::int AS cantidad_viajes,
+             MIN(precio)::float AS precio_desde,
+             array_agg(DISTINCT cooperativa) AS cooperativas
+      FROM vendibles
+      WHERE origen_ciudad = ${c.origen_ciudad}
+        AND destino_ciudad = ${c.destino_ciudad}
+        AND fecha <> ${fecha}::date
+      GROUP BY fecha
+      ORDER BY ABS(fecha - ${fecha}::date), fecha
+      LIMIT 5
+    `);
+
+    const destinos = await this.db.execute(sql`
+      WITH vendibles AS (${viajesVendibles})
+      SELECT destino_ciudad, COUNT(*)::int AS cantidad_viajes,
+             MIN(precio)::float AS precio_desde,
+             array_agg(DISTINCT cooperativa) AS cooperativas,
+             (array_agg(destino_id ORDER BY destino_nombre))[1]::text AS destino_id
+      FROM vendibles
+      WHERE origen_ciudad = ${c.origen_ciudad}
+        AND destino_ciudad <> ${c.destino_ciudad}
+        AND fecha = ${fecha}::date
+      GROUP BY destino_ciudad
+      ORDER BY MIN(precio), destino_ciudad
+      LIMIT 6
+    `);
+
+    const enLaRuta = await this.db.execute(sql`
+      SELECT DISTINCT co.nombre_comercial AS cooperativa
+      FROM rutas r
+      INNER JOIN cooperativas co ON co.id = r.cooperativa_id
+      INNER JOIN puntos_operacion ori ON ori.id = r.origen_punto_operacion_id
+      INNER JOIN puntos_operacion dest ON dest.id = r.destino_punto_operacion_id
+      WHERE r.activa = true AND co.estado = 'aprobada'
+        AND ori.ciudad = ${c.origen_ciudad}
+        AND dest.ciudad = ${c.destino_ciudad}
+      ORDER BY 1
+    `);
+
+    return {
+      fechasCercanas: fechas.rows
+        .map((f) => {
+          const fila = f as {
+            fecha: string;
+            cantidad_viajes: number;
+            precio_desde: number;
+            cooperativas: string[];
+          };
+          return {
+            fecha: fila.fecha,
+            cantidadViajes: fila.cantidad_viajes,
+            precioDesde: fila.precio_desde,
+            cooperativas: fila.cooperativas,
+          };
+        })
+        .sort((a, b) => a.fecha.localeCompare(b.fecha)),
+      otrosDestinos: destinos.rows.map((d) => {
+        const fila = d as {
+          destino_id: string;
+          destino_ciudad: string;
+          cantidad_viajes: number;
+          precio_desde: number;
+          cooperativas: string[];
+        };
+        return {
+          destinoId: fila.destino_id,
+          destinoCiudad: fila.destino_ciudad,
+          cantidadViajes: fila.cantidad_viajes,
+          precioDesde: fila.precio_desde,
+          cooperativas: fila.cooperativas,
+        };
+      }),
+      cooperativasEnLaRuta: enLaRuta.rows.map(
+        (f) => (f as { cooperativa: string }).cooperativa,
+      ),
+    };
+  }
+
   /** Banners propios activos, para la página pública — sin autenticación (22-jul-2026). */
   async listarBannersActivos() {
     return this.db

@@ -47,3 +47,22 @@ export class BuscarViajesDto {
   @IsString()
   amenidades?: string;
 }
+
+/** Alternativas cuando una búsqueda no encuentra viajes (23-sep-2026). */
+export class BuscarAlternativasDto {
+  @IsUUID()
+  origenId!: string;
+
+  @IsUUID()
+  destinoId!: string;
+
+  /** Formato YYYY-MM-DD. */
+  @IsDateString()
+  fecha!: string;
+
+  @IsOptional()
+  @TransformType(() => Number)
+  @IsInt()
+  @Min(1)
+  pasajeros?: number = 1;
+}
