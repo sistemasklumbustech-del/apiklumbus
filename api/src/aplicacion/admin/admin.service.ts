@@ -16,6 +16,9 @@ import type {
 } from '../../dominio/admin/admin.ports';
 import { calcularDiscrepancias } from '../../dominio/admin/conciliacion.util';
 
+import type { AlmacenamientoArchivos } from '../../dominio/auth/auth.ports';
+import { ALMACENAMIENTO_ARCHIVOS } from '../auth/auth.service';
+
 export const ADMIN_REPOSITORIO = 'ADMIN_REPOSITORIO';
 
 /**
@@ -37,7 +40,19 @@ const ROLES_VALIDOS = [
 export class AdminService {
   constructor(
     @Inject(ADMIN_REPOSITORIO) private readonly admin: AdminRepositorio,
+    @Inject(ALMACENAMIENTO_ARCHIVOS)
+    private readonly almacenamiento: AlmacenamientoArchivos,
   ) {}
+
+  /** Sube la imagen de un banner (se optimiza al guardarla) y devuelve su URL para usarla al crear el banner. */
+  async subirImagenBanner(buffer: Buffer, nombreOriginal: string) {
+    const { url } = await this.almacenamiento.guardarImagen(
+      buffer,
+      nombreOriginal,
+      'banners',
+    );
+    return { url };
+  }
 
   async crearCooperativaConPrimerUsuario(
     datosCooperativa: DatosNuevaCooperativa,

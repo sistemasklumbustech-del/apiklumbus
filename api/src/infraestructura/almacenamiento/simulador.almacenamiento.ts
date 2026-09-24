@@ -1,4 +1,5 @@
-﻿import { Injectable, Logger } from '@nestjs/common';
+﻿import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import sharp from 'sharp';
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -29,6 +30,28 @@ const URL_API_PUBLICA = 'https://api.klumbus.tech';
  * Se antepone el origen de la API para que la URL sea absoluta y
  * funcione sin importar desde donde se muestre.
  */
+/**
+ * Tamaño máximo (en píxeles, lado más largo) según lo que se sube: un
+ * logo o una foto de perfil se ven pequeños, así que no tiene sentido
+ * guardarlos grandes; un banner o un comprobante necesitan más detalle.
+ * Lo que no esté en la lista usa el valor por defecto.
+ */
+const LADO_MAXIMO_POR_CARPETA: Record<string, number> = {
+  perfiles: 600,
+  logos: 800,
+  banners: 1920,
+};
+const LADO_MAXIMO_POR_DEFECTO = 1600;
+const CALIDAD_WEBP = 80;
+
+/**
+ * Único punto por donde pasa TODO lo que se sube a la aplicación (foto de
+ * perfil, logo de cooperativa, banners, comprobantes de pago): las
+ * imágenes se corrigen de orientación, se reducen al tamaño útil, se
+ * les quita el metadata (ubicación GPS, cámara) y se guardan como WebP.
+ * Una foto de celular de 4-8 MB queda en unos 100-300 KB. Los PDF
+ * (comprobantes) se guardan tal cual.
+ */
 @Injectable()
 export class SimuladorAlmacenamiento implements AlmacenamientoArchivos {
   private readonly logger = new Logger(SimuladorAlmacenamiento.name);
@@ -42,11 +65,38 @@ export class SimuladorAlmacenamiento implements AlmacenamientoArchivos {
     const carpetaDestino = join(this.carpetaBase, carpeta);
     await mkdir(carpetaDestino, { recursive: true });
 
-    const extension = nombreOriginal.split('.').pop() || 'jpg';
+    const extensionOriginal = (
+      nombreOriginal.split('.').pop() || ''
+    ).toLowerCase();
+    let contenido = buffer;
+    let extension = 'webp';
+    if (extensionOriginal === 'pdf') {
+      extension = 'pdf';
+    } else {
+      try {
+        contenido = await sharp(buffer)
+          .rotate()
+          .resize({
+            width: LADO_MAXIMO_POR_CARPETA[carpeta] ?? LADO_MAXIMO_POR_DEFECTO,
+            height: LADO_MAXIMO_POR_CARPETA[carpeta] ?? LADO_MAXIMO_POR_DEFECTO,
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          .webp({ quality: CALIDAD_WEBP })
+          .toBuffer();
+        this.logger.log(
+          `Imagen optimizada (${carpeta}): ${Math.round(buffer.length / 1024)} KB -> ${Math.round(contenido.length / 1024)} KB`,
+        );
+      } catch {
+        throw new BadRequestException(
+          'El archivo no es una imagen válida. Usa una foto JPG, PNG o WEBP.',
+        );
+      }
+    }
     const nombreArchivo = `${randomUUID()}.${extension}`;
     const rutaCompleta = join(carpetaDestino, nombreArchivo);
 
-    await writeFile(rutaCompleta, buffer);
+    await writeFile(rutaCompleta, contenido);
 
     const url = `${URL_API_PUBLICA}/uploads/${carpeta}/${nombreArchivo}`;
     this.logger.log(`[SIMULADO] Archivo guardado en disco -> ${rutaCompleta}, URL: ${url}`);

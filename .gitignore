@@ -10,3 +10,6 @@ coverage/
 !.env.*.example
 
 api/uploads/
+
+# Archivos subidos por usuarios (logos, fotos, comprobantes) -- viven en el servidor, no en git
+api/uploads/

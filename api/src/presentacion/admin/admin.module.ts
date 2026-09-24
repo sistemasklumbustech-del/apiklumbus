@@ -6,8 +6,10 @@ import {
 } from '../../aplicacion/admin/admin.service';
 import { AdminRepositorioDrizzle } from '../../infraestructura/admin/admin.repositorio.drizzle';
 import { BcryptHasher } from '../../infraestructura/auth/bcrypt.hasher';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
+  imports: [AuthModule],
   controllers: [AdminController],
   providers: [
     AdminService,

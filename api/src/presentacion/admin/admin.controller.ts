@@ -9,8 +9,11 @@ import {
   Query,
   Request,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
   BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { AdminService } from '../../aplicacion/admin/admin.service';
 import {
   CrearCooperativaDto,
@@ -192,6 +195,21 @@ export class AdminController {
       pagina: dto.pagina ?? 1,
       limite: dto.limite ?? 25,
     });
+  }
+
+  /** Sube la imagen de un banner desde el computador o el celular; se optimiza y devuelve la URL. */
+  @Post('banners-propios/imagen')
+  @UseInterceptors(
+    FileInterceptor('imagen', { limits: { fileSize: 10 * 1024 * 1024 } }),
+  )
+  async subirImagenBanner(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No se recibió ningún archivo.');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
+      throw new BadRequestException(
+        'Solo se permiten imágenes JPG, PNG o WEBP.',
+      );
+    }
+    return this.admin.subirImagenBanner(file.buffer, file.originalname);
   }
 
   @Post('banners-propios')
