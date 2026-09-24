@@ -582,6 +582,8 @@ export interface FiltrosViajes {
   estado?: string;
   rutaId?: string;
   busqueda?: string;
+  /** Orden por salida; por defecto 'desc'. */
+  orden?: 'asc' | 'desc';
   pagina: number;
   limite: number;
 }

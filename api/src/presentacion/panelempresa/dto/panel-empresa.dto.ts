@@ -390,6 +390,11 @@ export class ConsultarViajesDto {
   @MaxLength(100)
   busqueda?: string;
 
+  /** Orden por fecha y hora de salida; por defecto, las más recientes primero. */
+  @IsOptional()
+  @IsIn(["asc", "desc"])
+  orden?: "asc" | "desc";
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

@@ -305,6 +305,7 @@ export class PanelEmpresaController {
       estado: dto.estado,
       rutaId: dto.rutaId,
       busqueda: dto.busqueda,
+      orden: dto.orden,
       pagina: dto.pagina ?? 1,
       limite: dto.limite ?? 25,
     });

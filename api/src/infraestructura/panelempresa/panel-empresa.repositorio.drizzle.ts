@@ -964,7 +964,7 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
                ) AS llegada_estimada
         ${desdeJoins}
         WHERE ${donde}
-        ORDER BY v.fecha_salida DESC, v.hora_salida_programada DESC
+        ORDER BY ${filtros.orden === 'asc' ? sql`v.fecha_salida ASC, v.hora_salida_programada ASC` : sql`v.fecha_salida DESC, v.hora_salida_programada DESC`}
         LIMIT ${filtros.limite} OFFSET ${offset}
       `);
       const filas = resultado.rows.map((fila) => {
