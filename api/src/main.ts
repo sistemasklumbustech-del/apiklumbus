@@ -7,6 +7,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'node:path';
 import { AppModule } from './app.module';
+import { almacenContexto } from './infraestructura/auditoria/contexto-solicitud';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -17,6 +18,25 @@ async function bootstrap() {
   // configurado más abajo en AppModule, que hasta ahora limitaba a
   // TODO el tráfico combinado como si fuera un solo cliente.
   app.set('trust proxy', 1);
+  // RF-021 (auditoría completa): deja la IP real del cliente y su navegador
+  // disponibles en toda la solicitud, para que cualquier registro de
+  // auditoría los guarde sin pasarlos de mano en mano.
+  app.use(
+    (
+      req: { ip?: string; headers: Record<string, unknown> },
+      _res: unknown,
+      next: () => void,
+    ) => {
+      const userAgent = req.headers['user-agent'];
+      almacenContexto.run(
+        {
+          ip: req.ip,
+          userAgent: typeof userAgent === 'string' ? userAgent : undefined,
+        },
+        next,
+      );
+    },
+  );
   // Activa las validaciones de class-validator en cada DTO (@IsEmail,
   // @MinLength, etc.) -- sin esto, los decoradores de los DTO no hacen
   // nada, solo son anotaciones sin efecto.

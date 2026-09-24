@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import { DRIZZLE_DB_PUBLICO } from '../database/database.module';
 import type { DrizzleDb } from '../database/database.provider';
 import type { ReferidosRepositorio } from '../../dominio/referidos/referidos.ports';
+import { ipActual } from '../auditoria/contexto-solicitud';
 
 /**
  * Usa DRIZZLE_DB_PUBLICO (bypass RLS) a propósito -- mismo criterio
@@ -126,8 +127,8 @@ export class ReferidosRepositorioDrizzle implements ReferidosRepositorio {
     }
 
     await this.db.execute(sql`
-      INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle)
-      VALUES ('cambio_config_referidos', ${actualizadoPorUsuarioId}, 'configuracion_plataforma', ${configuracionId}, ${JSON.stringify(datos)})
+      INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle, direccion_ip)
+      VALUES ('cambio_config_referidos', ${actualizadoPorUsuarioId}, 'configuracion_plataforma', ${configuracionId}, ${JSON.stringify(datos)}, ${ipActual()})
     `);
   }
 

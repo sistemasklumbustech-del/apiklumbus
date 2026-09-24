@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import { DRIZZLE_DB_PUBLICO } from '../database/database.module';
 import type { DrizzleDb } from '../database/database.provider';
 import type { WalletRepositorio } from '../../dominio/wallet/wallet.ports';
+import { ipActual } from '../auditoria/contexto-solicitud';
 
 /**
  * Usa DRIZZLE_DB_PUBLICO (bypass RLS) a propósito -- mismo criterio
@@ -123,8 +124,8 @@ export class WalletRepositorioDrizzle implements WalletRepositorio {
     }
 
     await this.db.execute(sql`
-      INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle)
-      VALUES ('cambio_cashback_porcentaje', ${actualizadoPorUsuarioId}, 'configuracion_plataforma', ${configuracionId}, ${JSON.stringify({ nuevoPorcentaje: porcentaje })})
+      INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle, direccion_ip)
+      VALUES ('cambio_cashback_porcentaje', ${actualizadoPorUsuarioId}, 'configuracion_plataforma', ${configuracionId}, ${JSON.stringify({ nuevoPorcentaje: porcentaje })}, ${ipActual()})
     `);
   }
 }

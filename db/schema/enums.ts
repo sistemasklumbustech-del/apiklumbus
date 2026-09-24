@@ -159,6 +159,12 @@ export const accionAuditoriaEnum = pgEnum('accion_auditoria', [
   // 21-sep-2026, RF-035 -- suspender/reactivar cooperativas, con estado anterior/nuevo y motivo en `detalle`.
   'suspension_cooperativa',
   'reactivacion_cooperativa',
+  // 24-sep-2026, RF-021 -- auditoría completa (IP, resultado, acciones del sistema).
+  'inicio_sesion',
+  'generacion_viajes',
+  'resolucion_reclamo',
+  'confirmacion_pago_manual',
+  'rechazo_pago_manual',
 ]);
 
 /** RF-COMM-002 — planes comerciales diferenciados. */

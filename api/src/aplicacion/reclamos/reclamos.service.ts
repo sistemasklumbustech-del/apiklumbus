@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import type { NotificadorEmail } from '../../dominio/auth/auth.ports';
 import { NOTIFICADOR_EMAIL } from '../auth/auth.service';
+import { AuditoriaRegistrador } from '../../infraestructura/auditoria/auditoria.registrador';
 import {
   ETIQUETA_TIPO_RECLAMO,
   type FiltrosReclamosCooperativa,
@@ -31,6 +32,7 @@ export class ReclamosService {
     @Inject(RECLAMOS_REPOSITORIO)
     private readonly reclamos: ReclamosRepositorio,
     @Inject(NOTIFICADOR_EMAIL) private readonly email: NotificadorEmail,
+    private readonly auditoria: AuditoriaRegistrador,
   ) {}
 
   async crear(
@@ -174,6 +176,19 @@ export class ReclamosService {
       // Otro usuario de la cooperativa lo resolvió en el mismo instante.
       throw new ConflictException('Este reclamo ya fue resuelto.');
     }
+
+    await this.auditoria.registrar({
+      accion: 'resolucion_reclamo',
+      usuarioId,
+      entidadTipo: 'reclamo',
+      entidadId: reclamoId,
+      detalle: {
+        cooperativaId,
+        decision: datos.decision,
+        tipo: reclamo.tipo,
+        montoReconocido: monto,
+      },
+    });
 
     await this.avisarResolucion(reclamoId, aFavor, respuesta, monto);
     return { ok: true };

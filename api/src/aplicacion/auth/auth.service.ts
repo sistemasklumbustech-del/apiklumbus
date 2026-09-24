@@ -30,6 +30,7 @@ import {
 } from '../../dominio/auth/auth.ports';
 import { ReferidosService } from '../referidos/referidos.service';
 import { TerminosService } from '../terminos/terminos.service';
+import { AuditoriaRegistrador } from '../../infraestructura/auditoria/auditoria.registrador';
 
 export const USUARIO_REPOSITORIO = 'USUARIO_REPOSITORIO';
 export const HASHER_CONTRASENA = 'HASHER_CONTRASENA';
@@ -75,6 +76,7 @@ export class AuthService {
     @Inject(CIFRADOR_TOTP) private readonly cifradorTotp: CifradorTotp,
     private readonly referidos: ReferidosService,
     private readonly terminos: TerminosService,
+    private readonly auditoria: AuditoriaRegistrador,
   ) {}
 
   /** RF-AUTH-001 — registro de pasajero. */
@@ -148,6 +150,23 @@ export class AuthService {
    * dominio/auth/auth.ports.ts para la limitación conocida respecto al
    * criterio exacto del SRS (ventana deslizante de 10 minutos).
    */
+  /** Auditoría de inicios de sesión (RF-021): IP y navegador salen del contexto de la solicitud. */
+  private registrarInicioSesion(
+    usuario: { id: string } | null,
+    correoIngresado: string,
+    resultado: 'exito' | 'fallo',
+    detalle: Record<string, unknown>,
+  ) {
+    return this.auditoria.registrar({
+      accion: 'inicio_sesion',
+      usuarioId: usuario?.id ?? null,
+      entidadTipo: usuario ? 'usuario' : 'sesion',
+      entidadId: usuario?.id ?? null,
+      detalle: { correo: correoIngresado, ...detalle },
+      resultado,
+    });
+  }
+
   async login(correo: string, passwordPlano: string) {
     const usuario = await this.usuarios.buscarPorCorreo(correo);
 
@@ -159,10 +178,16 @@ export class AuthService {
       new UnauthorizedException('Correo o contraseña incorrectos.');
 
     if (!usuario || !usuario.activo || !usuario.passwordHash) {
+      await this.registrarInicioSesion(usuario ?? null, correo, 'fallo', {
+        motivo: usuario ? 'cuenta_inactiva' : 'correo_no_registrado',
+      });
       throw credencialesInvalidas();
     }
 
     if (cuentaEstaBloqueada(usuario.bloqueadoHasta)) {
+      await this.registrarInicioSesion(usuario, correo, 'fallo', {
+        motivo: 'cuenta_bloqueada',
+      });
       throw new UnauthorizedException(
         'Cuenta bloqueada temporalmente por demasiados intentos fallidos. Intenta más tarde.',
       );
@@ -182,10 +207,22 @@ export class AuthService {
         nuevoConteo,
         bloqueadoHasta,
       );
+      await this.registrarInicioSesion(usuario, correo, 'fallo', {
+        motivo: 'contrasena_incorrecta',
+        intentosFallidos: nuevoConteo,
+      });
       throw credencialesInvalidas();
     }
 
     await this.usuarios.reiniciarIntentosFallidos(usuario.id);
+    // Se auditan los inicios de sesión correctos del personal (los de
+    // pasajeros serían un volumen enorme sin valor de seguridad); los
+    // fallidos se auditan siempre, de cualquier cuenta.
+    if (usuario.rol !== 'pasajero') {
+      await this.registrarInicioSesion(usuario, correo, 'exito', {
+        rol: usuario.rol,
+      });
+    }
 
     // Ítem 19, Fase 3 (05-ago-2026) -- 2FA obligatorio, sin excepción,
     // para las 3 cuentas administrativas. No emite las credenciales

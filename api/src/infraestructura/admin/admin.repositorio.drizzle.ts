@@ -45,6 +45,7 @@ import type {
   FiltrosBanners,
   ResultadoBanners,
 } from '../../dominio/admin/admin.ports';
+import { ipActual } from '../auditoria/contexto-solicitud';
 
 /**
  * Todas las operaciones de este repositorio usan DRIZZLE_DB_PUBLICO
@@ -504,14 +505,14 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
 
     // 3) Auditoría — acción crítica que afecta a todas las cooperativas.
     await this.db.execute(sql`
-      INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle)
+      INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle, direccion_ip)
       VALUES (
         'actualizacion_iva_nacional',
         ${usuarioId},
         'configuracion_plataforma',
         ${configuracionId},
         ${JSON.stringify({ nuevoPorcentaje, cooperativasActualizadas: propagado.rows.length })}
-      )
+      , ${ipActual()})
     `);
 
     return { cooperativasActualizadas: propagado.rows.length };
@@ -556,8 +557,8 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
     // en el enum sin usar hasta ahora (el cargo fijo por pasajero es
     // el concepto de comisión de esta plataforma).
     await this.db.execute(sql`
-      INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle)
-      VALUES ('cambio_comision', ${usuarioId}, 'configuracion_plataforma', ${configuracionId}, ${JSON.stringify({ nuevoMonto })})
+      INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle, direccion_ip)
+      VALUES ('cambio_comision', ${usuarioId}, 'configuracion_plataforma', ${configuracionId}, ${JSON.stringify({ nuevoMonto })}, ${ipActual()})
     `);
   }
 
@@ -606,8 +607,8 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
     }
 
     await this.db.execute(sql`
-      INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle)
-      VALUES ('cambio_contacto_soporte', ${usuarioId}, 'configuracion_plataforma', ${configuracionId}, ${JSON.stringify(datos)})
+      INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle, direccion_ip)
+      VALUES ('cambio_contacto_soporte', ${usuarioId}, 'configuracion_plataforma', ${configuracionId}, ${JSON.stringify(datos)}, ${ipActual()})
     `);
   }
 
@@ -725,8 +726,8 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
 
     // 04-ago-2026, ítem 9 -- valor nuevo del enum, sin equivalente existente.
     await this.db.execute(sql`
-      INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle)
-      VALUES ('cambio_modo_iva_boleto', ${usuarioId}, 'configuracion_plataforma', ${configuracionId}, ${JSON.stringify({ modo })})
+      INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle, direccion_ip)
+      VALUES ('cambio_modo_iva_boleto', ${usuarioId}, 'configuracion_plataforma', ${configuracionId}, ${JSON.stringify({ modo })}, ${ipActual()})
     `);
   }
 
@@ -780,8 +781,8 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
       .returning();
 
     await this.db.execute(sql`
-      INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle)
-      VALUES ('creacion_administrador', ${creadoPorUsuarioId}, 'usuario', ${fila.id}, ${JSON.stringify({ correo: datos.correo, rol: datos.rol })})
+      INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle, direccion_ip)
+      VALUES ('creacion_administrador', ${creadoPorUsuarioId}, 'usuario', ${fila.id}, ${JSON.stringify({ correo: datos.correo, rol: datos.rol })}, ${ipActual()})
     `);
 
     return { id: fila.id };
@@ -859,8 +860,8 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
     }
 
     await this.db.execute(sql`
-      INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle)
-      VALUES ('eliminacion_administrador', ${eliminadoPorUsuarioId}, 'usuario', ${id}, '{}')
+      INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle, direccion_ip)
+      VALUES ('eliminacion_administrador', ${eliminadoPorUsuarioId}, 'usuario', ${id}, '{}', ${ipActual()})
     `);
   }
 
@@ -885,8 +886,8 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
     }
 
     await this.db.execute(sql`
-      INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle)
-      VALUES ('baja_cooperativa', ${eliminadoPorUsuarioId}, 'cooperativa', ${id}, '{}')
+      INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle, direccion_ip)
+      VALUES ('baja_cooperativa', ${eliminadoPorUsuarioId}, 'cooperativa', ${id}, '{}', ${ipActual()})
     `);
   }
 
@@ -940,8 +941,8 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
         motivo: motivo ?? null,
       });
       await tx.execute(sql`
-        INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle)
-        VALUES (${accion}, ${usuarioId}, 'cooperativa', ${id}, ${detalle}::jsonb)
+        INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle, direccion_ip)
+        VALUES (${accion}, ${usuarioId}, 'cooperativa', ${id}, ${detalle}::jsonb, ${ipActual()})
       `);
       return { ok: true as const };
     });

@@ -17,6 +17,7 @@ import { ReferidosService } from '../referidos/referidos.service';
 import { TerminosService } from '../terminos/terminos.service';
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
+import { AuditoriaRegistrador } from '../../infraestructura/auditoria/auditoria.registrador';
 
 export const COMPRA_REPOSITORIO = 'COMPRA_REPOSITORIO';
 export const PASARELA_PAGO = 'PASARELA_PAGO';
@@ -58,6 +59,7 @@ export class CheckoutService {
     private readonly wallet: WalletService,
     private readonly referidos: ReferidosService,
     private readonly terminos: TerminosService,
+    private readonly auditoria: AuditoriaRegistrador,
   ) {}
 
   /**
@@ -1234,6 +1236,13 @@ export class CheckoutService {
     if (!resultado.ok) {
       throw new BadRequestException(resultado.motivo);
     }
+    await this.auditoria.registrar({
+      accion: 'confirmacion_pago_manual',
+      usuarioId: confirmadoPorUsuarioId,
+      entidadTipo: 'pago',
+      entidadId: pagoId,
+      detalle: { cooperativaId, compraId: resultado.compraId },
+    });
     // Factura del servicio de Colombus (29-jul-2026) -- no falla la
     // confirmación del pago si esto tiene algún problema, el boleto ya
     // es real y válido de todas formas; se registra el error para
@@ -1288,6 +1297,13 @@ export class CheckoutService {
     if (!resultado.ok) {
       throw new BadRequestException(resultado.motivo);
     }
+    await this.auditoria.registrar({
+      accion: 'rechazo_pago_manual',
+      usuarioId: confirmadoPorUsuarioId,
+      entidadTipo: 'pago',
+      entidadId: pagoId,
+      detalle: { cooperativaId, motivo: motivo ?? null },
+    });
     return { ok: true };
   }
 

@@ -23,9 +23,9 @@ export const auditoriaAdmin = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
 
     accion: accionAuditoriaEnum('accion').notNull(),
-    usuarioId: uuid('usuario_id')
-      .references(() => usuarios.id)
-      .notNull(),
+    // Opcional (RF-021): un intento de inicio de sesión con un correo
+    // inexistente, o una tarea automática del sistema, no tienen usuario.
+    usuarioId: uuid('usuario_id').references(() => usuarios.id),
 
     // Referencia genérica polimórfica (ej. entidadTipo='cooperativa',
     // entidadId=<uuid de esa cooperativa>). Se opta por esto en vez de
@@ -35,12 +35,19 @@ export const auditoriaAdmin = pgTable(
     // categorías) y no vale la pena una tabla de auditoría separada por
     // cada una.
     entidadTipo: varchar('entidad_tipo', { length: 50 }).notNull(),
-    entidadId: uuid('entidad_id').notNull(),
+    entidadId: uuid('entidad_id'),
 
     // Snapshot de qué cambió (ej. { antes: {...}, despues: {...} }) —
     // suficientemente flexible para no rediseñar el esquema cada vez que
     // se audita un nuevo tipo de cambio.
     detalle: jsonb('detalle'),
+
+    // RF-021 (24-sep-2026) -- auditoría completa: desde dónde se hizo,
+    // cómo terminó y quién la originó (persona o sistema).
+    direccionIp: varchar('direccion_ip', { length: 45 }),
+    userAgent: varchar('user_agent', { length: 300 }),
+    resultado: varchar('resultado', { length: 10 }).default('exito').notNull(), // 'exito' | 'fallo'
+    origen: varchar('origen', { length: 10 }).default('usuario').notNull(), // 'usuario' | 'sistema'
 
     creadoEn: timestamp('creado_en', { withTimezone: true }).defaultNow().notNull(),
   },

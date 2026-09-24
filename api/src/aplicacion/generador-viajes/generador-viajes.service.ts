@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { AuditoriaRegistrador } from '../../infraestructura/auditoria/auditoria.registrador';
 import type {
   GeneradorViajesRepositorio,
   HorarioActivoParaGenerar,
@@ -17,6 +18,7 @@ export class GeneradorViajesService {
   constructor(
     @Inject(GENERADOR_VIAJES_REPOSITORIO)
     private readonly repo: GeneradorViajesRepositorio,
+    private readonly auditoria: AuditoriaRegistrador,
   ) {}
 
   /**
@@ -47,6 +49,18 @@ export class GeneradorViajesService {
       this.logger.log(
         `Generación de viajes: ${generados} creados, ${saltadosSinUnidad} plantilla(s) sin unidad disponible.`,
       );
+      // RF-021 -- acción del sistema (sin usuario), con su resultado.
+      await this.auditoria.registrar({
+        accion: 'generacion_viajes',
+        entidadTipo: 'generador_viajes',
+        detalle: {
+          generados,
+          saltadosSinUnidad,
+          diasHaciaAdelante: DIAS_HACIA_ADELANTE,
+        },
+        resultado: saltadosSinUnidad > 0 && generados === 0 ? 'fallo' : 'exito',
+        origen: 'sistema',
+      });
     }
   }
 
