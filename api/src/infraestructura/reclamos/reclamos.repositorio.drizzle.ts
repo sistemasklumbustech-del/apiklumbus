@@ -18,7 +18,7 @@ import type {
 } from '../../dominio/reclamos/reclamos.ports';
 
 /**
- * Usa DRIZZLE_DB_PUBLICO (bypass RLS) a propósito, igual que las
+ * Usa DRIZZLE_DB_PUBLICO (rol de plataforma) a propósito, igual que las
  * solicitudes de factura y el historial de pagos: un mismo reclamo lo
  * ve el pasajero (que no pertenece a ninguna cooperativa) y la
  * cooperativa dueña del viaje, así que el aislamiento se garantiza con
