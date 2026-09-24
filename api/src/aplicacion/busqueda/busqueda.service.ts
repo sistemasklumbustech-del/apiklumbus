@@ -262,6 +262,13 @@ export class BusquedaService {
         // Hallazgo real del director (21-ago-2026) -- dato informativo
         // real para el pasajero, junto a la duracion estimada.
         distanciaKm: rutas.distanciaKm,
+        // Duración que la cooperativa cargó en la ruta (24-sep-2026) -- para
+        // estimar la llegada cuando el viaje no trae hora de llegada, y las
+        // ciudades, para armar el enlace al mapa cuando la terminal no tiene
+        // coordenadas.
+        duracionEstimadaMinutos: rutas.duracionEstimadaMinutos,
+        origenCiudad: origen.ciudad,
+        destinoCiudad: destino.ciudad,
       })
       .from(viajes)
       .innerJoin(rutas, eq(viajes.rutaId, rutas.id))
