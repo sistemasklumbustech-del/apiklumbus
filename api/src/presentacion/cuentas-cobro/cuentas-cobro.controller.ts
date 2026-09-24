@@ -63,7 +63,12 @@ export class CuentasCobroAdminController {
 
   @Get()
   listar(@Query() dto: ConsultarCuentasCobroDto) {
-    return this.cuentas.listarParaAdmin(dto.estado);
+    return this.cuentas.listarParaAdmin({
+      estado: dto.estado,
+      busqueda: dto.busqueda,
+      pagina: dto.pagina ?? 1,
+      limite: dto.limite ?? 10,
+    });
   }
 
   @Patch(':id/verificar')

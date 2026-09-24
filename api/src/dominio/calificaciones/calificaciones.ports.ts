@@ -3,6 +3,17 @@
  * completo en packages/db/schema/calificaciones.ts sobre por qué se
  * califica el viaje/cooperativa y no la plataforma en general.
  */
+/** Filtros y paginación de "Mis boletos" (24-sep-2026). Fechas YYYY-MM-DD sobre la fecha de salida. */
+export interface FiltrosMisBoletos {
+  estado?: 'vigente' | 'usado' | 'cancelado';
+  desde?: string;
+  hasta?: string;
+  /** Ciudad de origen o destino, o nombre de la cooperativa. */
+  busqueda?: string;
+  pagina: number;
+  limite: number;
+}
+
 export interface CalificacionesRepositorio {
   /**
    * Confirma que el boleto existe y le pertenece de verdad al usuario
@@ -63,8 +74,12 @@ export interface CalificacionesRepositorio {
   }>;
 
   /** "Mis boletos" — historial de compras del pasajero, con si ya puede calificar cada uno. */
-  listarBoletosDePasajero(usuarioId: string): Promise<
-    {
+  listarBoletosDePasajero(
+    usuarioId: string,
+    filtros: FiltrosMisBoletos,
+  ): Promise<{
+    total: number;
+    filas: {
       boletoId: string;
       codigoQr: string;
       estado: string;
@@ -75,6 +90,6 @@ export interface CalificacionesRepositorio {
       horaSalidaProgramada: Date;
       horaLlegadaEstimada: Date | null;
       yaCalificado: boolean;
-    }[]
-  >;
+    }[];
+  }>;
 }

@@ -1,10 +1,14 @@
+import { Type } from 'class-transformer';
 import {
   IsEmail,
   IsIn,
+  IsInt,
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
+  Min,
   MinLength,
 } from 'class-validator';
 
@@ -56,6 +60,24 @@ export class ConsultarCuentasCobroDto {
   @IsOptional()
   @IsIn(['pendiente_verificacion', 'verificada', 'rechazada'])
   estado?: 'pendiente_verificacion' | 'verificada' | 'rechazada';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  busqueda?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pagina?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limite?: number;
 }
 
 export class RechazarCuentaCobroDto {

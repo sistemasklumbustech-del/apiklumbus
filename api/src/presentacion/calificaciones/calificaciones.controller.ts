@@ -12,7 +12,11 @@ import {
 import type { Response } from 'express';
 import { CalificacionesService } from '../../aplicacion/calificaciones/calificaciones.service';
 import { CheckoutService } from '../../aplicacion/ventas/checkout.service';
-import { CalificarViajeDto, ListarResenasQueryDto } from './dto/calificaciones.dto';
+import {
+  CalificarViajeDto,
+  ConsultarMisBoletosDto,
+  ListarResenasQueryDto,
+} from './dto/calificaciones.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PayloadToken } from '../../dominio/auth/auth.ports';
 
@@ -44,8 +48,18 @@ export class CalificacionesController {
   /** "Mis boletos" — historial de compras del pasajero (22-jul-2026). */
   @UseGuards(JwtAuthGuard)
   @Get('mis-boletos')
-  async misBoletos(@Request() req: { user: PayloadToken }) {
-    return this.calificaciones.listarMisBoletos(req.user.sub);
+  async misBoletos(
+    @Query() dto: ConsultarMisBoletosDto,
+    @Request() req: { user: PayloadToken },
+  ) {
+    return this.calificaciones.listarMisBoletos(req.user.sub, {
+      estado: dto.estado,
+      desde: dto.desde,
+      hasta: dto.hasta,
+      busqueda: dto.busqueda,
+      pagina: dto.pagina ?? 1,
+      limite: dto.limite ?? 10,
+    });
   }
 
   /**

@@ -7,6 +7,7 @@ import type {
   CuentasCobroRepositorio,
   DatosCuentaCobro,
   EstadoCuentaCobro,
+  FiltrosCuentasCobro,
 } from '../../dominio/cuentas-cobro/cuentas-cobro.ports';
 
 interface Fila {
@@ -98,16 +99,35 @@ export class CuentasCobroRepositorioDrizzle implements CuentasCobroRepositorio {
     });
   }
 
-  async listarParaAdmin(estado?: EstadoCuentaCobro): Promise<CuentaCobro[]> {
-    const filtro = estado
-      ? sql`WHERE c.estado = ${estado}::estado_cuenta_cobro`
-      : sql`WHERE c.estado <> 'reemplazada'`;
-    const r = await this.db.execute(sql`
-      ${SELECCION} ${filtro}
-      ORDER BY (c.estado = 'pendiente_verificacion') DESC, c.creado_en DESC
-      LIMIT 200
+  async listarParaAdmin(
+    filtros: FiltrosCuentasCobro,
+  ): Promise<{ filas: CuentaCobro[]; total: number }> {
+    const condiciones = [
+      filtros.estado
+        ? sql`c.estado = ${filtros.estado}::estado_cuenta_cobro`
+        : sql`c.estado <> 'reemplazada'`,
+    ];
+    const texto = filtros.busqueda?.trim();
+    if (texto) {
+      const patron = `%${texto}%`;
+      condiciones.push(
+        sql`(co.nombre ILIKE ${patron} OR c.titular_nombre ILIKE ${patron} OR c.titular_identificacion ILIKE ${patron} OR c.correo_notificacion ILIKE ${patron})`,
+      );
+    }
+    const donde = sql.join(condiciones, sql` AND `);
+    const totalFilas = await this.db.execute(sql`
+      SELECT COUNT(*)::int AS total
+      FROM cuentas_cobro_cooperativa c
+      INNER JOIN cooperativas co ON co.id = c.cooperativa_id
+      WHERE ${donde}
     `);
-    return (r.rows as unknown as Fila[]).map(mapear);
+    const total = (totalFilas.rows[0] as { total: number }).total;
+    const r = await this.db.execute(sql`
+      ${SELECCION} WHERE ${donde}
+      ORDER BY (c.estado = 'pendiente_verificacion') DESC, c.creado_en DESC
+      LIMIT ${filtros.limite} OFFSET ${(filtros.pagina - 1) * filtros.limite}
+    `);
+    return { filas: (r.rows as unknown as Fila[]).map(mapear), total };
   }
 
   async obtener(id: string): Promise<CuentaCobro | null> {

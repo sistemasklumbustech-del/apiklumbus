@@ -9,7 +9,7 @@ import { AuditoriaRegistrador } from '../../infraestructura/auditoria/auditoria.
 import type {
   CuentasCobroRepositorio,
   DatosCuentaCobro,
-  EstadoCuentaCobro,
+  FiltrosCuentasCobro,
 } from '../../dominio/cuentas-cobro/cuentas-cobro.ports';
 
 export const CUENTAS_COBRO_REPOSITORIO = 'CUENTAS_COBRO_REPOSITORIO';
@@ -67,8 +67,8 @@ export class CuentasCobroService {
     return creada;
   }
 
-  listarParaAdmin(estado?: EstadoCuentaCobro) {
-    return this.cuentas.listarParaAdmin(estado);
+  listarParaAdmin(filtros: FiltrosCuentasCobro) {
+    return this.cuentas.listarParaAdmin(filtros);
   }
 
   private async pendienteOFalla(id: string) {

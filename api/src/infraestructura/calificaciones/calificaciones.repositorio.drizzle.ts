@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, sql, desc } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import {
   boletos,
@@ -14,7 +14,10 @@ import {
 } from '@columbus/db';
 import { DRIZZLE_DB_PUBLICO } from '../database/database.module';
 import type { DrizzleDb } from '../database/database.provider';
-import type { CalificacionesRepositorio } from '../../dominio/calificaciones/calificaciones.ports';
+import type {
+  CalificacionesRepositorio,
+  FiltrosMisBoletos,
+} from '../../dominio/calificaciones/calificaciones.ports';
 
 /**
  * Usa DRIZZLE_DB_PUBLICO (bypass RLS) a propósito: `calificaciones` no
@@ -161,8 +164,12 @@ export class CalificacionesRepositorioDrizzle implements CalificacionesRepositor
     };
   }
 
-  async listarBoletosDePasajero(usuarioId: string): Promise<
-    {
+  async listarBoletosDePasajero(
+    usuarioId: string,
+    filtros: FiltrosMisBoletos,
+  ): Promise<{
+    total: number;
+    filas: {
       boletoId: string;
       codigoQr: string;
       cooperativaNombre: string;
@@ -173,10 +180,44 @@ export class CalificacionesRepositorioDrizzle implements CalificacionesRepositor
       horaLlegadaEstimada: Date | null;
       yaCalificado: boolean;
       estado: string;
-    }[]
-  > {
+    }[];
+  }> {
     const puntosOrigen = alias(puntosOperacion, 'puntos_origen');
     const puntosDestino = alias(puntosOperacion, 'puntos_destino');
+
+    const condiciones = [eq(compras.compradorUsuarioId, usuarioId)];
+    if (filtros.estado) condiciones.push(eq(boletos.estado, filtros.estado));
+    if (filtros.desde) condiciones.push(gte(viajes.fechaSalida, filtros.desde));
+    if (filtros.hasta) condiciones.push(lte(viajes.fechaSalida, filtros.hasta));
+    const texto = filtros.busqueda?.trim();
+    if (texto) {
+      const patron = `%${texto}%`;
+      const coincidencia = or(
+        ilike(puntosOrigen.ciudad, patron),
+        ilike(puntosDestino.ciudad, patron),
+        ilike(cooperativas.nombreComercial, patron),
+      );
+      if (coincidencia) condiciones.push(coincidencia);
+    }
+    const donde = and(...condiciones);
+
+    const [{ total }] = await this.db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(boletos)
+      .innerJoin(compras, eq(boletos.compraId, compras.id))
+      .innerJoin(viajeAsientos, eq(boletos.viajeAsientoId, viajeAsientos.id))
+      .innerJoin(viajes, eq(viajeAsientos.viajeId, viajes.id))
+      .innerJoin(rutas, eq(viajes.rutaId, rutas.id))
+      .innerJoin(
+        puntosOrigen,
+        eq(rutas.origenPuntoOperacionId, puntosOrigen.id),
+      )
+      .innerJoin(
+        puntosDestino,
+        eq(rutas.destinoPuntoOperacionId, puntosDestino.id),
+      )
+      .innerJoin(cooperativas, eq(boletos.cooperativaId, cooperativas.id))
+      .where(donde);
 
     const filas = await this.db
       .select({
@@ -206,20 +247,25 @@ export class CalificacionesRepositorioDrizzle implements CalificacionesRepositor
       )
       .innerJoin(cooperativas, eq(boletos.cooperativaId, cooperativas.id))
       .leftJoin(calificaciones, eq(calificaciones.boletoId, boletos.id))
-      .where(eq(compras.compradorUsuarioId, usuarioId))
-      .orderBy(desc(viajes.horaSalidaProgramada));
+      .where(donde)
+      .orderBy(desc(viajes.horaSalidaProgramada))
+      .limit(filtros.limite)
+      .offset((filtros.pagina - 1) * filtros.limite);
 
-    return filas.map((f) => ({
-      boletoId: f.boletoId,
-      codigoQr: f.codigoQr,
-      estado: f.estado,
-      cooperativaNombre: f.cooperativaNombre,
-      origenCiudad: f.origenCiudad,
-      destinoCiudad: f.destinoCiudad,
-      fechaSalida: f.fechaSalida,
-      horaSalidaProgramada: f.horaSalidaProgramada,
-      horaLlegadaEstimada: f.horaLlegadaEstimada,
-      yaCalificado: f.calificacionId !== null,
-    }));
+    return {
+      total,
+      filas: filas.map((f) => ({
+        boletoId: f.boletoId,
+        codigoQr: f.codigoQr,
+        estado: f.estado,
+        cooperativaNombre: f.cooperativaNombre,
+        origenCiudad: f.origenCiudad,
+        destinoCiudad: f.destinoCiudad,
+        fechaSalida: f.fechaSalida,
+        horaSalidaProgramada: f.horaSalidaProgramada,
+        horaLlegadaEstimada: f.horaLlegadaEstimada,
+        yaCalificado: f.calificacionId !== null,
+      })),
+    };
   }
 }

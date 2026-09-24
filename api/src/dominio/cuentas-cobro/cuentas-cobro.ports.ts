@@ -21,6 +21,14 @@ export interface CuentaCobro extends DatosCuentaCobro {
   creadoEn: string;
 }
 
+export interface FiltrosCuentasCobro {
+  estado?: EstadoCuentaCobro;
+  /** Nombre de la cooperativa, titular, RUC/cédula o correo. */
+  busqueda?: string;
+  pagina: number;
+  limite: number;
+}
+
 export interface CuentasCobroRepositorio {
   /** Cuentas de una cooperativa, más recientes primero (vigente, pendiente y rechazada; sin las reemplazadas). */
   listarDeCooperativa(cooperativaId: string): Promise<CuentaCobro[]>;
@@ -30,7 +38,10 @@ export interface CuentasCobroRepositorio {
     usuarioId: string,
     datos: DatosCuentaCobro,
   ): Promise<{ id: string }>;
-  listarParaAdmin(estado?: EstadoCuentaCobro): Promise<CuentaCobro[]>;
+  listarParaAdmin(filtros: FiltrosCuentasCobro): Promise<{
+    filas: CuentaCobro[];
+    total: number;
+  }>;
   obtener(id: string): Promise<CuentaCobro | null>;
   /** Marca verificada y pasa a "reemplazada" la vigente anterior, todo en una transacción. */
   verificar(id: string, adminId: string): Promise<void>;

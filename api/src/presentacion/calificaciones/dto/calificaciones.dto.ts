@@ -1,8 +1,10 @@
 import {
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -38,4 +40,41 @@ export class ListarResenasQueryDto {
   @Min(1)
   @Max(50)
   porPagina?: number = 10;
+}
+
+/** "Mis boletos" con filtros y paginación (24-sep-2026). */
+export class ConsultarMisBoletosDto {
+  @IsOptional()
+  @IsIn(['vigente', 'usado', 'cancelado'])
+  estado?: 'vigente' | 'usado' | 'cancelado';
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'desde debe tener formato YYYY-MM-DD.',
+  })
+  desde?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'hasta debe tener formato YYYY-MM-DD.',
+  })
+  hasta?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  busqueda?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pagina?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limite?: number;
 }

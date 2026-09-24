@@ -5,7 +5,10 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
-import type { CalificacionesRepositorio } from '../../dominio/calificaciones/calificaciones.ports';
+import type {
+  CalificacionesRepositorio,
+  FiltrosMisBoletos,
+} from '../../dominio/calificaciones/calificaciones.ports';
 
 export const CALIFICACIONES_REPOSITORIO = 'CALIFICACIONES_REPOSITORIO';
 
@@ -93,16 +96,22 @@ export class CalificacionesService {
     return { resenas, total, pagina, porPagina };
   }
 
-  async listarMisBoletos(usuarioId: string) {
-    const boletos =
-      await this.calificaciones.listarBoletosDePasajero(usuarioId);
-    return boletos.map((b) => {
-      const referenciaLlegada = b.horaLlegadaEstimada ?? b.horaSalidaProgramada;
-      return {
-        ...b,
-        puedeCalificar: !b.yaCalificado && new Date() >= referenciaLlegada,
-      };
-    });
+  async listarMisBoletos(usuarioId: string, filtros: FiltrosMisBoletos) {
+    const { filas, total } =
+      await this.calificaciones.listarBoletosDePasajero(usuarioId, filtros);
+    return {
+      total,
+      pagina: filtros.pagina,
+      limite: filtros.limite,
+      filas: filas.map((b) => {
+        const referenciaLlegada =
+          b.horaLlegadaEstimada ?? b.horaSalidaProgramada;
+        return {
+          ...b,
+          puedeCalificar: !b.yaCalificado && new Date() >= referenciaLlegada,
+        };
+      }),
+    };
   }
 
 }
