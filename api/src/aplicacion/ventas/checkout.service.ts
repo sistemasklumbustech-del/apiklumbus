@@ -17,6 +17,10 @@ import { ReferidosService } from '../referidos/referidos.service';
 import { TerminosService } from '../terminos/terminos.service';
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
+import {
+  LOGO_BOLETO_PNG_BASE64,
+  LOGO_BOLETO_PROPORCION,
+} from './logo-boleto';
 import { AuditoriaRegistrador } from '../../infraestructura/auditoria/auditoria.registrador';
 
 export const COMPRA_REPOSITORIO = 'COMPRA_REPOSITORIO';
@@ -530,7 +534,7 @@ export class CheckoutService {
     // caracteres del UUID, en mayúsculas) -- mismo prefijo visual
     // "COL-" por consistencia de marca, sin necesitar ninguna columna
     // ni migración nueva: siempre reconstruible desde el id.
-    const numeroBoleto = `COL-${boletoId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+    const numeroBoleto = `KLB-${boletoId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
 
     const ETIQUETAS_TARIFA: Record<string, string> = {
       adulto: 'Adulto',
@@ -558,7 +562,10 @@ export class CheckoutService {
     });
 
     return new Promise<Buffer>((resolve, reject) => {
-      const doc = new PDFDocument({ size: 'LETTER', margin: 50 });
+      // Boleto compacto (24-sep-2026): tamaño A5 en vez de una hoja carta
+      // casi vacía -- se ve bien en el celular, gasta la mitad de papel si
+      // se imprime, y sigue siendo UNA sola página. Marca: logo de Klumbus.
+      const doc = new PDFDocument({ size: 'A5', margin: 28 });
       const chunks: Buffer[] = [];
       doc.on('data', (chunk: Buffer) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -571,212 +578,255 @@ export class CheckoutService {
       const anchoUtil = anchoPagina - margenIzq - margenDer;
       const AMARILLO_MARCA = '#ffd425';
       const NEGRO_MARCA = '#000000';
+      const GRIS_ETIQUETA = '#888888';
+      const TEXTO = '#1a1a1a';
 
       /**
-       * Aritmética de posiciones 100% fija y calculada a mano (13-ago-2026,
-       * segunda iteración) -- la primera versión mezclaba doc.moveDown()
-       * con coordenadas absolutas y se desbordaba a 9 páginas en blanco
-       * (bug real encontrado con la propia inspección visual que pidió
-       * el director, no algo que tsc pudiera atrapar). Cada bloque ahora
-       * tiene su y de inicio y alto YA sumados de antemano, verificados
-       * a mano para que el total quede dentro de una sola página LETTER
-       * (792pt) con margen de sobra -- nunca se deja que pdfkit decida
-       * solo si algo cabe o no.
+       * Posiciones fijas calculadas a mano (mismo criterio que la versión
+       * anterior: nunca se deja que pdfkit decida si algo cabe). Todo el
+       * boleto termina en yFin, dentro del margen real de la página A5.
        */
-      const yHeader = 50;
-      const yOperadoPor = 118;
-      const yRuta = 170;
-      const alturaBloqueRuta = 55;
-      const yGrid = yRuta + alturaBloqueRuta + 12; // 237
-      const alturaFilaGrid = 38;
-      const yPrecio = yGrid + alturaFilaGrid * 3 + 14; // 365
-      const yInstruccion = yPrecio + 58; // 423
-      const alturaInstruccion = 34;
-      const yLineaPunteada = yInstruccion + alturaInstruccion + 14; // 471
-      const yTalon = yLineaPunteada + 12; // 483
-      const tamanoQr = 135;
-      const yQr = yTalon + 10;
-      const yCodigoQrTexto = yQr + tamanoQr + 8;
-      const yCeldasRepetidas = yCodigoQrTexto + 18;
-      const alturaTalon = yCeldasRepetidas + 30 - yTalon;
-      const yPie = yTalon + alturaTalon + 10;
-      // Verificación real, no solo confiada: si esto algún día no cupiera
-      // (ej. una cooperativa con nombre muy largo forzando más líneas),
-      // es mejor fallar temprano y ruidoso que producir otro PDF de
-      // varias páginas en silencio. Bug real encontrado en la propia
-      // inspección visual de esta tarea: la primera versión de esta
-      // guarda usaba un margen inventado (altoPagina - 20) en vez del
-      // margen REAL de la página (doc.page.margins.bottom, 50) -- pasó
-      // sin avisar cuando el pie de página se desbordó apenas unos
-      // puntos a una segunda página casi vacía. Corregido para usar el
-      // margen real.
-      //
-      // 15-ago-2026 -- se agregó una 3ª línea al pie ("Gracias por
-      // preferirnos"), el presupuesto sube de 34 a 46 -- verificado a
-      // mano igual que el resto de esta aritmética, no una suposición.
-      if (yPie + 46 > altoPagina - doc.page.margins.bottom) {
+      const yHeader = 24;
+      const alturaLogo = 26;
+      const yFranja = 62;
+      const yOperadoPor = 74;
+      const yRuta = 112;
+      const yGrid = 168;
+      const alturaFilaGrid = 32;
+      const ySeparador = yGrid + alturaFilaGrid * 3 + 6; // 264
+      const yPrecio = ySeparador + 8; // 272
+      const alturaInstruccion = 50;
+      const yLineaPunteada = yPrecio + alturaInstruccion + 12; // 334
+      const yTalon = yLineaPunteada + 8; // 342
+      const alturaTalon = 148;
+      const tamanoQr = 108;
+      const yQr = yTalon + 12;
+      const yCodigoQrTexto = yTalon + alturaTalon - 16;
+      const yPie = yTalon + alturaTalon + 10; // 500
+      const yFin = yPie + 48;
+      if (yFin > altoPagina - doc.page.margins.bottom) {
         throw new Error(
           'El diseño del PDF del boleto no cabe en una sola página con los datos reales de este boleto -- revisar aritmética de posiciones.',
         );
       }
 
-      // Encabezado -- marca visible + número de boleto corto en la
-      // esquina superior derecha.
+      // Encabezado: logo de Klumbus a la izquierda, número de boleto a la derecha.
+      const anchoLogo = alturaLogo * LOGO_BOLETO_PROPORCION;
+      doc.image(
+        Buffer.from(LOGO_BOLETO_PNG_BASE64, 'base64'),
+        margenIzq,
+        yHeader,
+        {
+          width: anchoLogo,
+          height: alturaLogo,
+        },
+      );
       doc
-        .fontSize(24)
-        .fillColor(NEGRO_MARCA)
-        .font('Helvetica-Bold')
-        .text('Columbus', margenIzq, yHeader);
-      doc
-        .fontSize(10)
-        .fillColor('#888888')
+        .fontSize(7)
+        .fillColor(GRIS_ETIQUETA)
         .font('Helvetica')
-        .text('Boleto electrónico', margenIzq, yHeader + 30);
-
-      doc
-        .fontSize(9)
-        .fillColor('#888888')
-        .font('Helvetica')
-        .text('N.º DE BOLETO', margenIzq, yHeader, { width: anchoUtil, align: 'right' });
-      doc
-        .fontSize(14)
-        .fillColor(NEGRO_MARCA)
-        .font('Helvetica-Bold')
-        .text(numeroBoleto, margenIzq, yHeader + 12, { width: anchoUtil, align: 'right' });
-
-      doc
-        .strokeColor('#dddddd')
-        .lineWidth(1)
-        .moveTo(margenIzq, yOperadoPor - 12)
-        .lineTo(anchoPagina - margenDer, yOperadoPor - 12)
-        .stroke();
-
-      // Cooperativa.
-      doc.fontSize(9).fillColor('#888888').font('Helvetica').text('OPERADO POR', margenIzq, yOperadoPor);
+        .text('BOLETO ELECTRÓNICO · N.º', margenIzq, yHeader, {
+          width: anchoUtil,
+          align: 'right',
+        });
       doc
         .fontSize(15)
-        .fillColor('#1a1a1a')
+        .fillColor(NEGRO_MARCA)
         .font('Helvetica-Bold')
-        .text(datos.cooperativaNombre, margenIzq, yOperadoPor + 12);
-      // Unidad (15-ago-2026, hallazgo real del director) -- a la
-      // derecha, misma fila que cooperativa, sin desplazar nada del
-      // resto del diseño ya verificado. Solo se muestra si existe --
-      // un viaje puede no tener unidad asignada todavía.
+        .text(numeroBoleto, margenIzq, yHeader + 10, {
+          width: anchoUtil,
+          align: 'right',
+        });
+      doc
+        .rect(margenIzq, yFranja, anchoUtil, 3)
+        .fillColor(AMARILLO_MARCA)
+        .fill();
+
+      // Cooperativa y unidad.
+      doc
+        .fontSize(8)
+        .fillColor(GRIS_ETIQUETA)
+        .font('Helvetica')
+        .text('OPERADO POR', margenIzq, yOperadoPor);
+      doc
+        .fontSize(13)
+        .fillColor(TEXTO)
+        .font('Helvetica-Bold')
+        .text(datos.cooperativaNombre, margenIzq, yOperadoPor + 11, {
+          width: anchoUtil * 0.68,
+          height: 16,
+          ellipsis: true,
+        });
       if (datos.unidadIdentificador) {
         doc
-          .fontSize(9)
-          .fillColor('#888888')
+          .fontSize(8)
+          .fillColor(GRIS_ETIQUETA)
           .font('Helvetica')
-          .text('UNIDAD', margenIzq, yOperadoPor, { width: anchoUtil, align: 'right' });
+          .text('UNIDAD', margenIzq, yOperadoPor, {
+            width: anchoUtil,
+            align: 'right',
+          });
         doc
-          .fontSize(15)
-          .fillColor('#1a1a1a')
+          .fontSize(13)
+          .fillColor(TEXTO)
           .font('Helvetica-Bold')
-          .text(datos.unidadIdentificador, margenIzq, yOperadoPor + 12, { width: anchoUtil, align: 'right' });
+          .text(datos.unidadIdentificador, margenIzq, yOperadoPor + 11, {
+            width: anchoUtil,
+            align: 'right',
+          });
       }
 
-      // Ruta -- terminal real de origen/destino, no solo la ciudad.
-      const anchoRutaCol = anchoUtil / 2 - 15;
+      // Ruta: terminal y ciudad de origen y destino.
+      const anchoRutaCol = anchoUtil / 2 - 14;
+      const colDestinoX = margenIzq + anchoUtil / 2 + 14;
       doc
-        .fontSize(9)
-        .fillColor('#888888')
+        .fontSize(8)
+        .fillColor(GRIS_ETIQUETA)
         .font('Helvetica')
         .text('ORIGEN', margenIzq, yRuta, { width: anchoRutaCol });
       doc
-        .fontSize(14)
-        .fillColor('#1a1a1a')
+        .fontSize(11)
+        .fillColor(TEXTO)
         .font('Helvetica-Bold')
-        .text(datos.origenNombre, margenIzq, yRuta + 12, { width: anchoRutaCol, height: 20, ellipsis: true });
-      doc
-        .fontSize(10)
-        .fillColor('#666666')
-        .font('Helvetica')
-        .text(datos.origenCiudad, margenIzq, yRuta + 34, { width: anchoRutaCol });
-
-      const colDestinoX = margenIzq + anchoUtil / 2 + 15;
+        .text(datos.origenNombre, margenIzq, yRuta + 10, {
+          width: anchoRutaCol,
+          height: 26,
+          ellipsis: true,
+        });
       doc
         .fontSize(9)
-        .fillColor('#888888')
+        .fillColor('#666666')
+        .font('Helvetica')
+        .text(datos.origenCiudad, margenIzq, yRuta + 38, {
+          width: anchoRutaCol,
+        });
+      doc
+        .fontSize(8)
+        .fillColor(GRIS_ETIQUETA)
         .font('Helvetica')
         .text('DESTINO', colDestinoX, yRuta, { width: anchoRutaCol });
       doc
-        .fontSize(14)
-        .fillColor('#1a1a1a')
+        .fontSize(11)
+        .fillColor(TEXTO)
         .font('Helvetica-Bold')
-        .text(datos.destinoNombre, colDestinoX, yRuta + 12, { width: anchoRutaCol, height: 20, ellipsis: true });
+        .text(datos.destinoNombre, colDestinoX, yRuta + 10, {
+          width: anchoRutaCol,
+          height: 26,
+          ellipsis: true,
+        });
       doc
-        .fontSize(10)
+        .fontSize(9)
         .fillColor('#666666')
         .font('Helvetica')
-        .text(datos.destinoCiudad, colDestinoX, yRuta + 34, { width: anchoRutaCol });
-
-      // Flecha ASCII -- la fuente estándar Helvetica de pdfkit no tiene
-      // el glifo de flecha Unicode (→), lo sustituye por basura visual
-      // en vez de fallar limpio (hallazgo real, 05-ago-2026).
+        .text(datos.destinoCiudad, colDestinoX, yRuta + 38, {
+          width: anchoRutaCol,
+        });
+      // Flecha ASCII -- Helvetica estándar no tiene el glifo Unicode (→).
       doc
-        .fontSize(14)
+        .fontSize(13)
         .fillColor('#cccccc')
         .font('Helvetica-Bold')
-        .text('->', margenIzq + anchoUtil / 2 - 8, yRuta + 14);
+        .text('->', margenIzq + anchoUtil / 2 - 8, yRuta + 12);
 
       // Grilla de 3 filas x 2 columnas.
       const col1X = margenIzq;
-      const col2X = margenIzq + anchoUtil / 2;
-      const anchoCol = anchoUtil / 2 - 10;
-
+      const col2X = margenIzq + anchoUtil / 2 + 14;
+      const anchoCol = anchoUtil / 2 - 14;
+      // "mar, 22 sept 2026": la fecha larga ("martes, 22 de septiembre de 2026") no cabe en media columna.
+      const fechaCortaBoleto = (fecha: string) =>
+        new Date(`${fecha}T12:00:00Z`).toLocaleDateString('es-EC', {
+          timeZone: 'UTC',
+          weekday: 'short',
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        });
       function celda(etiqueta: string, valor: string, x: number, y: number) {
-        doc.fontSize(9).fillColor('#888888').font('Helvetica').text(etiqueta, x, y);
         doc
-          .fontSize(13)
-          .fillColor('#1a1a1a')
+          .fontSize(8)
+          .fillColor(GRIS_ETIQUETA)
+          .font('Helvetica')
+          .text(etiqueta, x, y);
+        doc
+          .fontSize(11.5)
+          .fillColor(TEXTO)
           .font('Helvetica-Bold')
-          .text(valor, x, y + 13, { width: anchoCol, height: 20, ellipsis: true });
+          .text(valor, x, y + 11, {
+            width: anchoCol,
+            height: 16,
+            ellipsis: true,
+          });
       }
-
-      celda('FECHA', formatearFechaBoleto(datos.fechaSalida), col1X, yGrid);
-      celda('HORA DE SALIDA', formatearHoraBoleto(datos.horaSalidaProgramada), col2X, yGrid);
-      celda('ASIENTO', datos.esVip ? `${datos.numeroAsiento} · VIP` : datos.numeroAsiento, col1X, yGrid + alturaFilaGrid);
+      celda('FECHA', fechaCortaBoleto(datos.fechaSalida), col1X, yGrid);
+      celda(
+        'HORA DE SALIDA',
+        formatearHoraBoleto(datos.horaSalidaProgramada),
+        col2X,
+        yGrid,
+      );
+      celda(
+        'ASIENTO',
+        datos.esVip ? `${datos.numeroAsiento} · VIP` : datos.numeroAsiento,
+        col1X,
+        yGrid + alturaFilaGrid,
+      );
       celda('PASAJERO', datos.pasajeroNombre, col2X, yGrid + alturaFilaGrid);
-      celda('DOCUMENTO', `${etiquetaDocumento} · ${datos.documento}`, col1X, yGrid + alturaFilaGrid * 2);
+      celda(
+        'DOCUMENTO',
+        `${etiquetaDocumento} · ${datos.documento}`,
+        col1X,
+        yGrid + alturaFilaGrid * 2,
+      );
       celda('TARIFA', textoTarifa, col2X, yGrid + alturaFilaGrid * 2);
 
       doc
         .strokeColor('#dddddd')
         .lineWidth(1)
-        .moveTo(margenIzq, yPrecio - 14)
-        .lineTo(anchoPagina - margenDer, yPrecio - 14)
+        .moveTo(margenIzq, ySeparador)
+        .lineTo(anchoPagina - margenDer, ySeparador)
         .stroke();
 
-      // Precio, con IVA desglosado -- respeta la misma configuración de
-      // visibilidad que ya usa el checkout (modoIvaBoleto).
-      doc.fontSize(9).fillColor('#888888').font('Helvetica').text('PRECIO PAGADO', margenIzq, yPrecio);
+      // Precio (con IVA desglosado si la configuración lo permite) a la
+      // izquierda, e instrucción de embarque a la derecha, en la misma fila.
       doc
-        .fontSize(22)
+        .fontSize(8)
+        .fillColor(GRIS_ETIQUETA)
+        .font('Helvetica')
+        .text('PRECIO PAGADO', margenIzq, yPrecio);
+      doc
+        .fontSize(20)
         .fillColor(NEGRO_MARCA)
         .font('Helvetica-Bold')
-        .text(`$${datos.precioPagado.toFixed(2)}`, margenIzq, yPrecio + 12);
+        .text(`$${datos.precioPagado.toFixed(2)}`, margenIzq, yPrecio + 11);
       if (ivaVisible && ivaMonto > 0) {
         doc
-          .fontSize(10)
+          .fontSize(8.5)
           .fillColor('#666666')
           .font('Helvetica')
-          .text(`Incluye IVA: $${ivaMonto.toFixed(2)}`, margenIzq, yPrecio + 40);
+          .text(
+            `Incluye IVA: $${ivaMonto.toFixed(2)}`,
+            margenIzq,
+            yPrecio + 35,
+          );
       }
-
-      // Instrucción real -- franja de color sutil de marca.
-      doc.rect(margenIzq, yInstruccion, anchoUtil, alturaInstruccion).fillColor('#fff8dc').fill();
+      const xInstruccion = margenIzq + anchoUtil * 0.42;
+      const anchoInstruccion = anchoUtil - (xInstruccion - margenIzq);
       doc
-        .fontSize(10)
+        .rect(xInstruccion, yPrecio, anchoInstruccion, alturaInstruccion)
+        .fillColor('#fff8dc')
+        .fill();
+      doc
+        .fontSize(9)
         .fillColor('#5a4a00')
         .font('Helvetica-Bold')
         .text(
           'Preséntate en el punto de embarque al menos 15 minutos antes de la salida, con tu documento de identidad.',
-          margenIzq + 12,
-          yInstruccion + 10,
-          { width: anchoUtil - 24, height: alturaInstruccion - 10 },
+          xInstruccion + 10,
+          yPrecio + 8,
+          { width: anchoInstruccion - 20, height: alturaInstruccion - 12 },
         );
 
-      // Separación tipo "talón recortable" de un pase de abordar real.
+      // Línea de corte y talón con el QR.
       doc
         .strokeColor('#999999')
         .lineWidth(1)
@@ -785,41 +835,59 @@ export class CheckoutService {
         .lineTo(anchoPagina - margenDer, yLineaPunteada)
         .stroke()
         .undash();
+      doc
+        .rect(margenIzq, yTalon, anchoUtil, alturaTalon)
+        .fillColor('#fffbea')
+        .fill();
+      doc
+        .rect(margenIzq, yTalon, anchoUtil, 4)
+        .fillColor(AMARILLO_MARCA)
+        .fill();
 
-      // Talón -- franja de fondo + QR grande + número de boleto, asiento
-      // y hora repetidos en grande (lo que el personal necesita ver
-      // rápido al abordar).
-      doc.rect(margenIzq, yTalon, anchoUtil, alturaTalon).fillColor('#fffbea').fill();
-      doc.rect(margenIzq, yTalon, anchoUtil, 4).fillColor(AMARILLO_MARCA).fill();
-
-      const xQr = (anchoPagina - tamanoQr) / 2;
+      const xQr = margenIzq + 14;
       doc.image(qrBuffer, xQr, yQr, { width: tamanoQr, height: tamanoQr });
 
-      doc
-        .fontSize(9)
-        .fillColor('#888888')
-        .font('Helvetica')
-        .text(datos.codigoQr, margenIzq, yCodigoQrTexto, { width: anchoUtil, align: 'center' });
-
-      const anchoTercio = anchoUtil / 3;
-      const celdaTalon = (etiqueta: string, valor: string, x: number) => {
+      // Datos clave repetidos junto al QR (lo que el personal mira al abordar).
+      const xDatos = xQr + tamanoQr + 22;
+      const anchoDatos = anchoPagina - margenDer - xDatos - 8;
+      const datoTalon = (etiqueta: string, valor: string, y: number) => {
         doc
           .fontSize(8)
-          .fillColor('#888888')
+          .fillColor(GRIS_ETIQUETA)
           .font('Helvetica')
-          .text(etiqueta, x, yCeldasRepetidas, { width: anchoTercio, align: 'center' });
+          .text(etiqueta, xDatos, y, { width: anchoDatos });
         doc
           .fontSize(15)
           .fillColor(NEGRO_MARCA)
           .font('Helvetica-Bold')
-          .text(valor, x, yCeldasRepetidas + 11, { width: anchoTercio, align: 'center', ellipsis: true });
+          .text(valor, xDatos, y + 10, {
+            width: anchoDatos,
+            height: 20,
+            ellipsis: true,
+          });
       };
-      celdaTalon('BOLETO', numeroBoleto, margenIzq);
-      celdaTalon('ASIENTO', datos.esVip ? `${datos.numeroAsiento} · VIP` : datos.numeroAsiento, margenIzq + anchoTercio);
-      celdaTalon('SALIDA', formatearHoraBoleto(datos.horaSalidaProgramada), margenIzq + anchoTercio * 2);
+      datoTalon('BOLETO', numeroBoleto, yQr);
+      datoTalon(
+        'ASIENTO',
+        datos.esVip ? `${datos.numeroAsiento} · VIP` : datos.numeroAsiento,
+        yQr + 38,
+      );
+      datoTalon(
+        'SALIDA',
+        formatearHoraBoleto(datos.horaSalidaProgramada),
+        yQr + 76,
+      );
 
-      // Pie de página -- política REAL de esta cooperativa específica,
-      // mismo texto que ya ve el pasajero en el checkout.
+      doc
+        .fontSize(6.5)
+        .fillColor(GRIS_ETIQUETA)
+        .font('Helvetica')
+        .text(datos.codigoQr, margenIzq, yCodigoQrTexto, {
+          width: anchoUtil,
+          align: 'center',
+        });
+
+      // Pie: política de la cooperativa, soporte de Klumbus y cierre.
       doc
         .strokeColor('#eeeeee')
         .lineWidth(1)
@@ -835,39 +903,46 @@ export class CheckoutService {
         : 'sin reprogramación';
 
       doc
-        .fontSize(7.5)
+        .fontSize(7)
         .fillColor('#999999')
         .font('Helvetica')
-        .text(`Política de esta cooperativa: ${textoCancelacion} · ${textoReprogramacion}.`, margenIzq, yPie + 8, {
-          width: anchoUtil,
-          align: 'center',
-        });
-
-      // Contacto de soporte global (13-ago-2026) -- decisión real,
-      // investigada contra FlixBus: el soporte se centraliza en la
-      // marca de la plataforma, no en cada cooperativa. Solo se
-      // muestra si de verdad está configurado -- nunca un placeholder
-      // ni una línea vacía.
-      if (contactoSoporte.correo || contactoSoporte.telefono) {
-        const partesContacto = [contactoSoporte.correo, contactoSoporte.telefono].filter(
-          (v): v is string => Boolean(v),
-        );
-        doc
-          .fontSize(7.5)
-          .fillColor('#999999')
-          .font('Helvetica')
-          .text(`Soporte Columbus: ${partesContacto.join(' · ')}`, margenIzq, yPie + 19, {
+        .text(
+          `Política de esta cooperativa: ${textoCancelacion} · ${textoReprogramacion}.`,
+          margenIzq,
+          yPie + 6,
+          {
             width: anchoUtil,
             align: 'center',
-          });
+          },
+        );
+
+      // Soporte centralizado en la marca (decisión del 13-ago-2026); solo
+      // se muestra si está configurado -- nunca un placeholder.
+      if (contactoSoporte.correo || contactoSoporte.telefono) {
+        const partesContacto = [
+          contactoSoporte.correo,
+          contactoSoporte.telefono,
+        ].filter((v): v is string => Boolean(v));
+        doc
+          .fontSize(7)
+          .fillColor('#999999')
+          .font('Helvetica')
+          .text(
+            `Soporte Klumbus: ${partesContacto.join(' · ')}`,
+            margenIzq,
+            yPie + 25,
+            {
+              width: anchoUtil,
+              align: 'center',
+            },
+          );
       }
 
-      // Mensaje de cierre (15-ago-2026, hallazgo real del director).
       doc
         .fontSize(8.5)
         .fillColor(NEGRO_MARCA)
         .font('Helvetica-Bold')
-        .text('Gracias por preferirnos', margenIzq, yPie + 31, {
+        .text('Gracias por preferirnos', margenIzq, yPie + 37, {
           width: anchoUtil,
           align: 'center',
         });
