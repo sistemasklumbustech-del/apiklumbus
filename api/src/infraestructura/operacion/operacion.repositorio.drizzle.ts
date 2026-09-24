@@ -278,6 +278,22 @@ export class OperacionRepositorioDrizzle implements OperacionRepositorio {
       LIMIT 10
     `);
 
+    // En curso y con la hora estimada de llegada ya pasada: falta la
+    // confirmación de llegada de la cooperativa.
+    const pendientesLlegada = await this.db.execute(sql`
+      WITH base AS (${viajesConOcupacion(sql`
+        v.estado = 'en_curso'
+        AND COALESCE(
+          v.hora_llegada_estimada,
+          v.hora_salida_programada + COALESCE(r.duracion_estimada_minutos, 240) * interval '1 minute'
+        ) <= now()
+      `)})
+      SELECT viaje_id, cooperativa, ruta, hora_salida, vendidos, capacidad
+      FROM base
+      ORDER BY hora_salida_programada ASC
+      LIMIT 10
+    `);
+
     const aAlerta = (fila: unknown): ViajeEnAlerta => {
       const f = fila as {
         viaje_id: string;
@@ -311,6 +327,7 @@ export class OperacionRepositorioDrizzle implements OperacionRepositorio {
       reclamos: { abiertos: r.abiertos, enRevision: r.en_revision },
       viajesAtrasados: atrasados.rows.map(aAlerta),
       viajesBajaOcupacion: bajaOcupacion.rows.map(aAlerta),
+      viajesPendientesLlegada: pendientesLlegada.rows.map(aAlerta),
     };
   }
 

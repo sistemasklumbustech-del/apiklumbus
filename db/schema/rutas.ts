@@ -160,6 +160,9 @@ export const viajes = pgTable(
     fechaSalida: date('fecha_salida').notNull(),
     horaSalidaProgramada: timestamp('hora_salida_programada', { withTimezone: true }).notNull(),
     horaLlegadaEstimada: timestamp('hora_llegada_estimada', { withTimezone: true }),
+    // Cuándo se le preguntó a la cooperativa si el bus ya llegó (aviso por
+    // correo, una sola vez) -- ver migración 0050 y EstadoViajesService.
+    llegadaConsultadaEn: timestamp('llegada_consultada_en', { withTimezone: true }),
 
     // RN-002 — precio realmente cobrado en esta salida; normalmente igual
     // a rutas.precioBaseReferencia, pero puede diferir puntualmente.

@@ -957,7 +957,11 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
         SELECT v.id, v.fecha_salida, v.hora_salida_programada, v.precio_base, v.estado,
                r.nombre AS ruta_nombre_raw, ori.ciudad AS origen_ciudad, dest.ciudad AS destino_ciudad,
                u.placa AS unidad_placa, tv.nombre AS tipo_vehiculo_nombre,
-               v.conductor_id, c.nombre_completo AS conductor_nombre
+               v.conductor_id, c.nombre_completo AS conductor_nombre,
+               COALESCE(
+                 v.hora_llegada_estimada,
+                 v.hora_salida_programada + COALESCE(r.duracion_estimada_minutos, 240) * interval '1 minute'
+               ) AS llegada_estimada
         ${desdeJoins}
         WHERE ${donde}
         ORDER BY v.fecha_salida DESC, v.hora_salida_programada DESC
@@ -977,6 +981,7 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
           tipo_vehiculo_nombre: string;
           conductor_id: string | null;
           conductor_nombre: string | null;
+          llegada_estimada: Date | string;
         };
         return {
           id: f.id,
@@ -986,6 +991,10 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
           destinoCiudad: f.destino_ciudad,
           fechaSalida: f.fecha_salida,
           horaSalidaProgramada: f.hora_salida_programada,
+          llegadaEstimada:
+            f.llegada_estimada instanceof Date
+              ? f.llegada_estimada.toISOString()
+              : new Date(f.llegada_estimada).toISOString(),
           precioBase: Number(f.precio_base),
           estado: f.estado,
           unidadPlaca: f.unidad_placa,

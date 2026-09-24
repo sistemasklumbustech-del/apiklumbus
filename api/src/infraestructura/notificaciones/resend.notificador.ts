@@ -136,6 +136,43 @@ export class ResendNotificador implements NotificadorEmail {
     });
   }
 
+  async enviarConsultaLlegada(
+    correo: string,
+    detalle: {
+      cooperativaNombre: string;
+      ruta: string;
+      horaSalida: string;
+      placa: string;
+    },
+  ): Promise<void> {
+    await this.enviar({
+      from: REMITENTE,
+      to: correo,
+      subject: '¿Ya llegó el bus? — Klumbus',
+      html: plantillaBase(
+        '¿Ya llegó el bus a su destino?',
+        `
+          <p style="font-size: 14px; line-height: 1.6;">
+            Pasó la hora estimada de llegada de un viaje de ${escaparHtml(detalle.cooperativaNombre)}:
+          </p>
+          <table style="width:100%; font-size:14px; margin: 16px 0; border-collapse: collapse;">
+            <tr><td style="padding:6px 0; color:#6b7280;">Ruta</td><td style="padding:6px 0; text-align:right;">${escaparHtml(detalle.ruta)}</td></tr>
+            <tr><td style="padding:6px 0; color:#6b7280;">Salida</td><td style="padding:6px 0; text-align:right;">${escaparHtml(detalle.horaSalida)}</td></tr>
+            <tr><td style="padding:6px 0; color:#6b7280;">Unidad</td><td style="padding:6px 0; text-align:right;">${escaparHtml(detalle.placa)}</td></tr>
+          </table>
+          <p style="font-size: 14px; line-height: 1.6;">
+            Si el bus ya llegó, confírmalo en tu panel para dar el viaje por finalizado.
+          </p>
+          <p style="margin: 24px 0;">
+            <a href="${URL_FRONTEND}/panel-empresa/viajes?estado=en_curso" style="background:#2451c4; color:#fff; padding:12px 24px; border-radius:8px; text-decoration:none; font-weight:600; font-size:14px; display:inline-block;">
+              Confirmar llegada
+            </a>
+          </p>
+        `,
+      ),
+    });
+  }
+
   async enviarReclamoNuevo(
     correo: string,
     detalle: {

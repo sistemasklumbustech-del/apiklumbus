@@ -29,6 +29,16 @@ export class SimuladorNotificador implements NotificadorEmail {
     );
   }
 
+  enviarConsultaLlegada(
+    correo: string,
+    detalle: { ruta: string; horaSalida: string },
+  ): Promise<void> {
+    this.logger.log(
+      `[SIMULADO] Consulta de llegada para ${correo} -> ${detalle.ruta} (salida ${detalle.horaSalida})`,
+    );
+    return Promise.resolve();
+  }
+
   enviarReclamoNuevo(
     correo: string,
     detalle: { reclamoId: string; tipo: string; ruta: string },

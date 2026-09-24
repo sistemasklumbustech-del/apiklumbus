@@ -571,6 +571,8 @@ export interface ViajeResumen {
   tipoVehiculoNombre: string;
   conductorId: string | null;
   conductorNombre: string | null;
+  /** Hora estimada de llegada (la del viaje, o salida + duración de la ruta); ISO. */
+  llegadaEstimada: string;
 }
 
 /** Paginación real (22-sep-2026) -- antes listarViajes devolvía todo sin filtros. */

@@ -78,6 +78,8 @@ export interface AlertasOperacion {
   reclamos: { abiertos: number; enRevision: number };
   viajesAtrasados: ViajeEnAlerta[];
   viajesBajaOcupacion: ViajeEnAlerta[];
+  /** En curso, con la hora estimada de llegada ya pasada: falta que la cooperativa confirme que llegó. */
+  viajesPendientesLlegada: ViajeEnAlerta[];
 }
 
 export interface OpcionRuta {

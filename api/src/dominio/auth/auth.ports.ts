@@ -271,6 +271,21 @@ export interface NotificadorEmail {
     },
   ): Promise<void>;
 
+  /**
+   * 24-sep-2026 -- pregunta a la cooperativa si el bus de un viaje en curso
+   * ya llegó a su destino (pasó la hora estimada de llegada); confirmarlo
+   * en su panel lo pasa a "finalizado".
+   */
+  enviarConsultaLlegada(
+    correo: string,
+    detalle: {
+      cooperativaNombre: string;
+      ruta: string;
+      horaSalida: string;
+      placa: string;
+    },
+  ): Promise<void>;
+
   /** RF-019 -- aviso al pasajero de que su reclamo fue resuelto o rechazado. */
   enviarReclamoResuelto(
     correo: string,

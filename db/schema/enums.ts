@@ -165,6 +165,8 @@ export const accionAuditoriaEnum = pgEnum('accion_auditoria', [
   'resolucion_reclamo',
   'confirmacion_pago_manual',
   'rechazo_pago_manual',
+  // 24-sep-2026 -- cambio de estado de un viaje (automático o por confirmación de llegada).
+  'cambio_estado_viaje',
 ]);
 
 /** RF-COMM-002 — planes comerciales diferenciados. */

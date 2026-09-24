@@ -18,6 +18,7 @@ import { CalificacionesModule } from './presentacion/calificaciones/calificacion
 import { ReclamosModule } from './presentacion/reclamos/reclamos.module';
 import { AuditoriaModule } from './presentacion/auditoria/auditoria.module';
 import { OperacionModule } from './presentacion/operacion/operacion.module';
+import { EstadoViajesModule } from './presentacion/estado-viajes/estado-viajes.module';
 import { ComercialModule } from './presentacion/comercial/comercial.module';
 import { LiquidacionesModule } from './presentacion/liquidaciones/liquidaciones.module';
 import { ApiExternaModule } from './presentacion/api-externa/api-externa.module';
@@ -72,6 +73,7 @@ import { TerminosModule } from './presentacion/terminos/terminos.module';
     ReclamosModule,
     AuditoriaModule,
     OperacionModule,
+    EstadoViajesModule,
   ],
   controllers: [AppController, SaludController],
   providers: [
