@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
 import { PanelEmpresaController } from './panel-empresa.controller';
+import { CargaMasivaController } from './carga-masiva.controller';
+import { CargaMasivaService } from '../../aplicacion/panelempresa/carga-masiva.service';
+import { CargaMasivaCatalogo } from '../../infraestructura/panelempresa/carga-masiva.catalogo';
 import {
   PanelEmpresaService,
   PANEL_EMPRESA_REPOSITORIO,
@@ -24,9 +27,11 @@ import { ReferidosModule } from '../referidos/referidos.module';
     WalletModule,
     ReferidosModule,
   ],
-  controllers: [PanelEmpresaController],
+  controllers: [PanelEmpresaController, CargaMasivaController],
   providers: [
     PanelEmpresaService,
+    CargaMasivaService,
+    CargaMasivaCatalogo,
     BcryptHasher,
     {
       provide: PANEL_EMPRESA_REPOSITORIO,
