@@ -74,6 +74,7 @@ export class BusquedaController {
       destinoId: query.destinoId,
       fecha: query.fecha,
       pasajerosMinimos: query.pasajeros ?? 1,
+      completo: query.completo,
     });
   }
 

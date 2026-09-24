@@ -316,25 +316,33 @@ export class BusquedaService {
     destinoId: string;
     fecha: string;
     pasajerosMinimos: number;
+    /** true = todas las fechas de los próximos 45 días (página "ver todo"), no solo las 5 más cercanas. */
+    completo?: boolean;
   }): Promise<{
     fechasCercanas: {
       fecha: string;
       cantidadViajes: number;
       precioDesde: number;
       cooperativas: string[];
+      horas: string[];
     }[];
+    /** Cuántas fechas con viajes existen en total (puede ser mayor que las devueltas). */
+    totalFechas: number;
     otrosDestinos: {
       destinoId: string;
       destinoCiudad: string;
       cantidadViajes: number;
       precioDesde: number;
       cooperativas: string[];
+      horas: string[];
     }[];
     cooperativasEnLaRuta: string[];
   }> {
     const { origenId, destinoId, fecha, pasajerosMinimos } = params;
+    const completo = params.completo ?? false;
     const vacio = {
       fechasCercanas: [],
+      totalFechas: 0,
       otrosDestinos: [],
       cooperativasEnLaRuta: [],
     };
@@ -355,6 +363,7 @@ export class BusquedaService {
     // que en buscarViajes (capacidad total menos asientos no disponibles).
     const viajesVendibles = sql`
       SELECT v.fecha_salida AS fecha, v.precio_base::float AS precio,
+             to_char(v.hora_salida_programada AT TIME ZONE 'America/Guayaquil', 'HH24:MI') AS hora,
              co.nombre_comercial AS cooperativa,
              ori.ciudad AS origen_ciudad, dest.ciudad AS destino_ciudad,
              dest.id AS destino_id, dest.nombre AS destino_nombre
@@ -383,14 +392,16 @@ export class BusquedaService {
       WITH vendibles AS (${viajesVendibles})
       SELECT fecha::text AS fecha, COUNT(*)::int AS cantidad_viajes,
              MIN(precio)::float AS precio_desde,
-             array_agg(DISTINCT cooperativa) AS cooperativas
+             array_agg(DISTINCT cooperativa) AS cooperativas,
+             array_agg(DISTINCT hora ORDER BY hora) AS horas,
+             COUNT(*) OVER ()::int AS total_fechas
       FROM vendibles
       WHERE origen_ciudad = ${c.origen_ciudad}
         AND destino_ciudad = ${c.destino_ciudad}
-        AND fecha <> ${fecha}::date
+        AND (${completo} OR fecha <> ${fecha}::date)
       GROUP BY fecha
-      ORDER BY ABS(fecha - ${fecha}::date), fecha
-      LIMIT 5
+      ORDER BY (CASE WHEN ${completo} THEN fecha - CURRENT_DATE ELSE ABS(fecha - ${fecha}::date) END), fecha
+      LIMIT ${completo ? 60 : 5}
     `);
 
     const destinos = await this.db.execute(sql`
@@ -398,6 +409,7 @@ export class BusquedaService {
       SELECT destino_ciudad, COUNT(*)::int AS cantidad_viajes,
              MIN(precio)::float AS precio_desde,
              array_agg(DISTINCT cooperativa) AS cooperativas,
+             array_agg(DISTINCT hora ORDER BY hora) AS horas,
              (array_agg(destino_id ORDER BY destino_nombre))[1]::text AS destino_id
       FROM vendibles
       WHERE origen_ciudad = ${c.origen_ciudad}
@@ -421,6 +433,9 @@ export class BusquedaService {
     `);
 
     return {
+      totalFechas:
+        (fechas.rows[0] as { total_fechas?: number } | undefined)
+          ?.total_fechas ?? 0,
       fechasCercanas: fechas.rows
         .map((f) => {
           const fila = f as {
@@ -428,12 +443,14 @@ export class BusquedaService {
             cantidad_viajes: number;
             precio_desde: number;
             cooperativas: string[];
+            horas: string[];
           };
           return {
             fecha: fila.fecha,
             cantidadViajes: fila.cantidad_viajes,
             precioDesde: fila.precio_desde,
             cooperativas: fila.cooperativas,
+            horas: fila.horas,
           };
         })
         .sort((a, b) => a.fecha.localeCompare(b.fecha)),
@@ -444,6 +461,7 @@ export class BusquedaService {
           cantidad_viajes: number;
           precio_desde: number;
           cooperativas: string[];
+          horas: string[];
         };
         return {
           destinoId: fila.destino_id,
@@ -451,6 +469,7 @@ export class BusquedaService {
           cantidadViajes: fila.cantidad_viajes,
           precioDesde: fila.precio_desde,
           cooperativas: fila.cooperativas,
+          horas: fila.horas,
         };
       }),
       cooperativasEnLaRuta: enLaRuta.rows.map(

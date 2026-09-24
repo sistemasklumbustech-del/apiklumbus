@@ -1,5 +1,14 @@
-import { IsUUID, IsDateString, IsOptional, IsInt, Min, Matches, IsString } from 'class-validator';
-import { Type as TransformType } from 'class-transformer';
+import {
+  IsUUID,
+  IsDateString,
+  IsOptional,
+  IsInt,
+  Min,
+  Matches,
+  IsString,
+  IsBoolean,
+} from 'class-validator';
+import { Type as TransformType, Transform } from 'class-transformer';
 
 export class BuscarViajesDto {
   @IsUUID()
@@ -65,4 +74,10 @@ export class BuscarAlternativasDto {
   @IsInt()
   @Min(1)
   pasajeros?: number = 1;
+
+  /** true = todas las fechas de los próximos 45 días (página "ver todo"). */
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  completo?: boolean;
 }
