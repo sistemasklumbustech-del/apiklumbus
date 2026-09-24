@@ -4,6 +4,7 @@ import type {
   CompraRepositorio,
   PasajeroCheckout,
   PasarelaPago,
+  MetodoPagoEnLinea,
   FiltrosSolicitudesFactura,
   FiltrosHistorialPagos,
 } from '../../dominio/ventas/ventas.ports';
@@ -127,6 +128,7 @@ export class CheckoutService {
     usarSaldoWallet?: boolean,
     aceptoTerminos?: boolean,
     direccionIp?: string,
+    metodoPagoEnLinea: MetodoPagoEnLinea = 'tarjeta',
   ) {
     if (!usuarioId && !telefonoContacto && !correoContacto) {
       throw new BadRequestException(
@@ -330,6 +332,7 @@ export class CheckoutService {
     const resultadoPago = await this.pasarela.procesar(
       montoAPagar,
       idempotencyKey,
+      metodoPagoEnLinea,
     );
 
     if (!resultadoPago.aprobado) {

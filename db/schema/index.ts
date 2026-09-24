@@ -30,3 +30,4 @@ export * from './referidos';
 export * from './integraciones-terminal';
 export * from './terminos';
 export * from './reclamos';
+export * from './cuentas-cobro';

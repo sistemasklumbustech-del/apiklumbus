@@ -167,6 +167,10 @@ export const accionAuditoriaEnum = pgEnum('accion_auditoria', [
   'rechazo_pago_manual',
   // 24-sep-2026 -- cambio de estado de un viaje (automático o por confirmación de llegada).
   'cambio_estado_viaje',
+  // 24-sep-2026 -- cuenta de cobro de la cooperativa (registro y verificación por el admin).
+  'registro_cuenta_cobro',
+  'verificacion_cuenta_cobro',
+  'rechazo_cuenta_cobro',
 ]);
 
 /** RF-COMM-002 — planes comerciales diferenciados. */
@@ -403,3 +407,13 @@ export const estadoReclamoEnum = pgEnum('estado_reclamo', [
   'resuelto',
   'rechazado',
 ]);
+
+/** Cuenta de cobro de la cooperativa (24-sep-2026) -- ver db/schema/cuentas-cobro.ts. */
+export const estadoCuentaCobroEnum = pgEnum('estado_cuenta_cobro', [
+  'pendiente_verificacion',
+  'verificada',
+  'rechazada',
+  'reemplazada',
+]);
+export const tipoCuentaBancariaEnum = pgEnum('tipo_cuenta_bancaria', ['ahorros', 'corriente']);
+export const tipoIdentificacionTitularEnum = pgEnum('tipo_identificacion_titular', ['cedula', 'ruc']);

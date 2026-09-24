@@ -16,6 +16,7 @@ import { AdminModule } from './presentacion/admin/admin.module';
 import { PanelEmpresaModule } from './presentacion/panelempresa/panel-empresa.module';
 import { CalificacionesModule } from './presentacion/calificaciones/calificaciones.module';
 import { ReclamosModule } from './presentacion/reclamos/reclamos.module';
+import { CuentasCobroModule } from './presentacion/cuentas-cobro/cuentas-cobro.module';
 import { AuditoriaModule } from './presentacion/auditoria/auditoria.module';
 import { OperacionModule } from './presentacion/operacion/operacion.module';
 import { EstadoViajesModule } from './presentacion/estado-viajes/estado-viajes.module';
@@ -71,6 +72,7 @@ import { TerminosModule } from './presentacion/terminos/terminos.module';
     ReferidosModule,
     TerminosModule,
     ReclamosModule,
+    CuentasCobroModule,
     AuditoriaModule,
     OperacionModule,
     EstadoViajesModule,

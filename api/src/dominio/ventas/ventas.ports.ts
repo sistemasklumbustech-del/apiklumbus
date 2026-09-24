@@ -89,9 +89,26 @@ export interface ResultadoPago {
   motivoRechazo?: string;
 }
 
+/**
+ * Medios de pago EN LÍNEA que ofrece la plataforma (24-sep-2026): tarjeta de
+ * crédito o débito, y DeUna. Los cobra la pasarela y el dinero entra a la
+ * cuenta de la plataforma, que después liquida a cada cooperativa (ver el
+ * módulo de liquidaciones y la cuenta de liquidación de la cooperativa).
+ */
+export type MetodoPagoEnLinea = 'tarjeta' | 'deuna';
+
 /** Puerto hacia la pasarela de pago — la capa de infra decide el proveedor real. */
 export interface PasarelaPago {
-  procesar(montoTotal: number, idempotencyKey: string): Promise<ResultadoPago>;
+  /**
+   * `metodo` indica con qué medio paga el cliente; el adaptador de cada
+   * proveedor real lo traduce a su propio flujo (tarjeta vs. DeUna).
+   * Por defecto, tarjeta.
+   */
+  procesar(
+    montoTotal: number,
+    idempotencyKey: string,
+    metodo?: MetodoPagoEnLinea,
+  ): Promise<ResultadoPago>;
 }
 
 export interface BoletoEmitido {

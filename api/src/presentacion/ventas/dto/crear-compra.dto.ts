@@ -170,6 +170,11 @@ export class CotizarCompraDto {
 }
 
 export class CrearCompraDto {
+  /** Medio de pago en línea elegido (24-sep-2026); por defecto, tarjeta. */
+  @IsOptional()
+  @IsIn(['tarjeta', 'deuna'])
+  metodoPagoEnLinea?: 'tarjeta' | 'deuna';
+
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })

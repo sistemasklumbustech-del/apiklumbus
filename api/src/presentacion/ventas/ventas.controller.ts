@@ -51,7 +51,24 @@ export class VentasController {
       dto.usarSaldoWallet,
       dto.aceptoTerminos,
       req.ip,
+      dto.metodoPagoEnLinea,
     );
+  }
+
+  /**
+   * Qué medios de pago en línea ofrece la plataforma y si la pasarela es real o
+   * de prueba (24-sep-2026) -- el checkout lo usa para mostrar las opciones y
+   * el aviso de "pago de prueba" solo mientras no haya una pasarela real.
+   * Público: no expone nada sensible.
+   */
+  @Get('pasarela')
+  infoPasarela() {
+    const proveedor = process.env.PASARELA_PROVEEDOR ?? 'simulado';
+    return {
+      proveedor,
+      modoPrueba: proveedor === 'simulado',
+      metodos: ['tarjeta', 'deuna'] as const,
+    };
   }
 
   /**

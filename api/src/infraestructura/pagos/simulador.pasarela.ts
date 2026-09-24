@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type {
+  MetodoPagoEnLinea,
   PasarelaPago,
   ResultadoPago,
 } from '../../dominio/ventas/ventas.ports';
@@ -25,7 +26,11 @@ import type {
  */
 @Injectable()
 export class SimuladorPasarelaPago implements PasarelaPago {
-  procesar(montoTotal: number, idempotencyKey: string): Promise<ResultadoPago> {
+  procesar(
+    montoTotal: number,
+    idempotencyKey: string,
+    metodo: MetodoPagoEnLinea = 'tarjeta',
+  ): Promise<ResultadoPago> {
     // Requerido por la interfaz PasarelaPago aunque este simulador no lo
     // use — una pasarela real (PayPhone/Kushki) sí lo necesita para
     // evitar cobros duplicados del lado del proveedor.
@@ -42,7 +47,7 @@ export class SimuladorPasarelaPago implements PasarelaPago {
     }
     return Promise.resolve({
       aprobado: true,
-      referenciaExterna: `SIMULADO-${randomUUID()}`,
+      referenciaExterna: `SIMULADO-${metodo}-${randomUUID()}`,
     });
   }
 }
