@@ -208,6 +208,34 @@ export class ResendNotificador implements NotificadorEmail {
     });
   }
 
+  async enviarCambioCorreo(
+    correoNuevo: string,
+    tokenPlano: string,
+  ): Promise<void> {
+    const link = `${URL_FRONTEND}/confirmar-cambio-correo?token=${tokenPlano}`;
+    await this.enviar({
+      from: REMITENTE,
+      to: correoNuevo,
+      subject: 'Confirmá tu nuevo correo — Klumbus',
+      html: plantillaBase(
+        'Confirmá tu nuevo correo',
+        `
+          <p style="font-size: 14px; line-height: 1.6;">
+            Pediste usar este correo en tu cuenta de Klumbus. Confirmalo con el botón de abajo: hasta entonces tu cuenta sigue con el correo anterior. Si no fuiste vos, ignorá este mensaje y no pasará nada.
+          </p>
+          <p style="margin: 24px 0;">
+            <a href="${link}" style="background:#2451c4; color:#fff; padding:12px 24px; border-radius:8px; text-decoration:none; font-weight:600; font-size:14px; display:inline-block;">
+              Confirmar mi nuevo correo
+            </a>
+          </p>
+          <p style="font-size: 12px; color: #6b7280; word-break: break-all;">
+            O copiá y pegá este enlace: ${link}
+          </p>
+        `,
+      ),
+    });
+  }
+
   async enviarVerificacionCorreo(
     correo: string,
     tokenPlano: string,

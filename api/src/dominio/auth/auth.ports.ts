@@ -249,6 +249,15 @@ export interface NotificadorEmail {
 
   enviarVerificacionCorreo(correo: string, tokenPlano: string): Promise<void>;
 
+  /**
+   * Cambio de correo (24-sep-2026) -- enlace propio hacia
+   * /confirmar-cambio-correo. Antes se reutilizaba
+   * enviarVerificacionCorreo, cuyo enlace apunta a /verificar-correo y
+   * consume tokens de OTRO propósito ('verificar_correo'), así que el
+   * enlace recibido siempre salía "no válido o expirado".
+   */
+  enviarCambioCorreo(correoNuevo: string, tokenPlano: string): Promise<void>;
+
   /** RF-019 (23-sep-2026) -- aviso a la cooperativa de un reclamo nuevo. */
   enviarReclamoNuevo(
     correo: string,

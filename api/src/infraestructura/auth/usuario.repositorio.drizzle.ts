@@ -294,7 +294,7 @@ export class UsuarioRepositorioDrizzle implements UsuarioRepositorio {
 
   async actualizarCorreo(usuarioId: string, correoNuevo: string): Promise<void> {
     await this.db.execute(sql`
-      UPDATE usuarios SET correo = ${correoNuevo} WHERE id = ${usuarioId}
+      UPDATE usuarios SET correo = ${correoNuevo}, correo_verificado = true WHERE id = ${usuarioId}
     `);
   }
 

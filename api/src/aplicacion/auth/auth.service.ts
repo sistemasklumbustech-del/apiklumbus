@@ -419,7 +419,7 @@ export class AuthService {
       tokenHash,
       expiraEn,
     );
-    await this.email.enviarVerificacionCorreo(correoNuevo, tokenPlano);
+    await this.email.enviarCambioCorreo(correoNuevo, tokenPlano);
 
     return { ok: true };
   }
@@ -434,7 +434,20 @@ export class AuthService {
       );
     }
 
-    await this.usuarios.actualizarCorreo(token.usuarioId, token.correoNuevo);
+    try {
+      await this.usuarios.actualizarCorreo(token.usuarioId, token.correoNuevo);
+    } catch (error) {
+      // Alguien pudo registrar ese mismo correo entre la solicitud y la
+      // confirmación: el índice único lo atrapa, con un mensaje claro
+      // en vez de un 500.
+      const causa = error as { cause?: { constraint?: string } };
+      if (causa?.cause?.constraint === 'uq_usuarios_correo') {
+        throw new ConflictException(
+          'Ese correo ya fue tomado por otra cuenta. Elige otro.',
+        );
+      }
+      throw error;
+    }
 
     return { ok: true };
   }

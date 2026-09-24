@@ -49,6 +49,14 @@ export class SimuladorNotificador implements NotificadorEmail {
     return Promise.resolve();
   }
 
+  enviarCambioCorreo(correoNuevo: string, tokenPlano: string): Promise<void> {
+    const link = `https://colombus.ec/confirmar-cambio-correo?token=${tokenPlano}`;
+    this.logger.log(
+      `[SIMULADO] Confirmacion de cambio de correo para ${correoNuevo} -> ${link}`,
+    );
+    return Promise.resolve();
+  }
+
   async enviarVerificacionCorreo(correo: string, tokenPlano: string): Promise<void> {
     const link = `https://colombus.ec/verificar-correo?token=${tokenPlano}`;
     this.logger.log(
