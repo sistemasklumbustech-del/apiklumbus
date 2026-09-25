@@ -708,6 +708,10 @@ export interface PasajeroDeViaje {
   estadoBoleto: string;
   /** Hallazgo real, 18-sep-2026 -- staff no tenía forma de recuperar el QR de una venta ya hecha (ej. reimprimir, o revisar un reclamo). */
   codigoQr: string;
+  /** Sexo declarado al comprar; solo se pide en asientos exclusivos para mujeres (25-sep-2026). */
+  sexo: 'femenino' | 'masculino' | null;
+  /** El asiento es exclusivo para mujeres -- el personal lo revisa al abordar. */
+  soloMujeres: boolean;
 }
 
 /**

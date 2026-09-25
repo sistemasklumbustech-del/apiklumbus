@@ -1,3 +1,7 @@
+import {
+  interpretarCelda,
+  obtenerPisos,
+} from '../../dominio/asientos/distribucion-asientos.util';
 import { Inject, Injectable, BadRequestException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { sql, eq, SQL } from 'drizzle-orm';
@@ -1011,7 +1015,7 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
     return ejecutarComoCooperativa(this.db, cooperativaId, async (tx) => {
       const resultado = await tx.execute(sql`
         SELECT va.numero_asiento, pc.nombres || ' ' || pc.apellidos AS nombre_completo, pc.documento,
-               pc.tipo_tarifa, pc.es_menor_edad, b.estado, b.codigo_qr
+               pc.tipo_tarifa, pc.es_menor_edad, pc.sexo, b.estado, b.codigo_qr
         FROM viaje_asientos va
         JOIN boletos b ON b.viaje_asiento_id = va.id
         JOIN pasajeros_compra pc ON pc.id = b.pasajero_compra_id
@@ -1019,6 +1023,35 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
         WHERE va.viaje_id = ${viajeId} AND v.cooperativa_id = ${cooperativaId}
         ORDER BY va.numero_asiento
       `);
+
+      // Asientos exclusivos para mujeres de este viaje (etiqueta "mujeres" de la distribución del bus).
+      const vehiculo = await tx.execute(sql`
+        SELECT tv.distribucion_asientos, tv.capacidad_total
+        FROM viajes v
+        JOIN unidades u ON u.id = v.unidad_id
+        JOIN tipos_vehiculo tv ON tv.id = u.tipo_vehiculo_id
+        WHERE v.id = ${viajeId} AND v.cooperativa_id = ${cooperativaId}
+      `);
+      const asientosMujeres = new Set<string>();
+      const datosVehiculo = vehiculo.rows[0] as
+        | { distribucion_asientos: unknown; capacidad_total: number }
+        | undefined;
+      if (datosVehiculo) {
+        for (const piso of obtenerPisos(
+          datosVehiculo.distribucion_asientos,
+          datosVehiculo.capacidad_total,
+        )) {
+          for (const filaAsientos of piso.filas) {
+            for (const celda of filaAsientos.celdas) {
+              const interpretada = interpretarCelda(celda, piso);
+              if (interpretada?.etiquetas.includes('mujeres')) {
+                asientosMujeres.add(interpretada.numero);
+              }
+            }
+          }
+        }
+      }
+
       return resultado.rows.map((fila) => {
         const f = fila as {
           numero_asiento: string;
@@ -1026,10 +1059,13 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
           documento: string;
           tipo_tarifa: string;
           es_menor_edad: boolean;
+          sexo: 'femenino' | 'masculino' | null;
           estado: string;
           codigo_qr: string;
         };
         return {
+          sexo: f.sexo,
+          soloMujeres: asientosMujeres.has(f.numero_asiento),
           numeroAsiento: f.numero_asiento,
           nombreCompleto: f.nombre_completo,
           documento: f.documento,
