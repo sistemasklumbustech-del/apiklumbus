@@ -63,6 +63,8 @@ export interface PasajeroCheckout {
   fechaNacimiento?: string;
   /** LOTTTSV Art. 48 -- atencion preferente, NO afecta tipoTarifa ni el precio. */
   esEmbarazada?: boolean;
+  /** Sexo declarado; obligatorio solo si el asiento es exclusivo para mujeres (25-sep-2026). */
+  sexo?: 'femenino' | 'masculino';
   autorizacionMenor?: AutorizacionMenor;
   /** Discapacidad (13-ago-2026) -- numero de carne CONADIS/MSP o cedula, declarado, sin verificacion automatica. */
   numeroDocumentoDiscapacidad?: string;
@@ -81,6 +83,8 @@ export interface DesgloseAsiento {
   ivaVisible: boolean;
   /** Correccion real 18-ago-2026 -- el pasajero no sabia que su asiento era VIP. */
   esVip: boolean;
+  /** El asiento es exclusivo para mujeres (25-sep-2026). */
+  soloMujeres: boolean;
 }
 
 export interface ResultadoPago {
@@ -402,6 +406,7 @@ export interface CompraRepositorio {
     documento: string;
     tipoTarifa: TipoTarifa;
     fechaNacimiento: string | null;
+    sexo: 'femenino' | 'masculino' | null;
   } | null>;
 
   /**

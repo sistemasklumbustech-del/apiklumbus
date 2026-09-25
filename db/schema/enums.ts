@@ -316,6 +316,9 @@ export const estadoSolicitudFacturaEnum = pgEnum('estado_solicitud_factura', [
  */
 export const tipoDocumentoEnum = pgEnum('tipo_documento', ['cedula', 'pasaporte']);
 
+/** Sexo declarado por el pasajero (25-sep-2026) -- solo se exige para asientos exclusivos de mujeres. */
+export const sexoPasajeroEnum = pgEnum('sexo_pasajero', ['femenino', 'masculino']);
+
 /**
  * RF-016 (Requerimiento Funcional TTM) — SIAT3000 puede validar con una
  * sola identidad técnica para toda la plataforma, o con un nick distinto

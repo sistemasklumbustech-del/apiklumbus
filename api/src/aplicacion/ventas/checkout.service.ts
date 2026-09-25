@@ -1026,6 +1026,7 @@ export class CheckoutService {
           documento: viejo.documento,
           tipoTarifa: viejo.tipoTarifa,
           fechaNacimiento: viejo.fechaNacimiento ?? undefined,
+          sexo: viejo.sexo ?? undefined,
         },
       ],
       usuarioId,

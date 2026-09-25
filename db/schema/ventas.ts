@@ -50,6 +50,7 @@ import {
   estadoBoletoEnum,
   tipoDocumentoEnum,
   estadoCompraEnum,
+  sexoPasajeroEnum,
 } from './enums';
 import { appRole, platformAdminRole, filtroCooperativaActual } from './rls';
 
@@ -176,6 +177,11 @@ export const pasajerosCompra = pgTable(
     // incluye ninos/adolescentes, discapacidad, y adultos mayores de 65).
     // Por eso vive separado de tipoTarifa -- no afecta el precio.
     esEmbarazada: boolean('es_embarazada').default(false).notNull(),
+
+    // Asientos exclusivos para mujeres (25-sep-2026) -- declarado por el
+    // pasajero; solo se exige cuando el asiento tiene la etiqueta
+    // 'mujeres'. Nullable: en el resto de compras no se pide.
+    sexo: sexoPasajeroEnum('sexo'),
 
     // Discapacidad, captura real (13-ago-2026) -- número de carné
     // CONADIS/MSP o de cédula (donde ya conste la condición desde que

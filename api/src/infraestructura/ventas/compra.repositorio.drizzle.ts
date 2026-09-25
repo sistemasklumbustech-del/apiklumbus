@@ -246,6 +246,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
       // que pudiera desincronizarse.
       const pisos = obtenerPisos(f.distribucionAsientos, f.capacidadTotal);
       let esVip = false;
+      let soloMujeres = false;
       for (const piso of pisos) {
         for (const filaAsientos of piso.filas) {
           for (const celda of filaAsientos.celdas) {
@@ -253,8 +254,22 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
             if (interpretada?.numero === asiento.numeroAsiento && interpretada.etiquetas.includes('vip')) {
               esVip = true;
             }
+            if (interpretada?.numero === asiento.numeroAsiento && interpretada.etiquetas.includes('mujeres')) {
+              soloMujeres = true;
+            }
           }
         }
+      }
+
+      // Asiento exclusivo para mujeres (25-sep-2026) -- se hace cumplir aquí,
+      // el mismo punto por el que pasan la cotización, la compra en línea, el
+      // pago manual, la ventanilla y la reprogramación.
+      if (soloMujeres && asiento.sexo !== 'femenino') {
+        throw new BadRequestException(
+          asiento.sexo === 'masculino'
+            ? `El asiento ${asiento.numeroAsiento} es exclusivo para mujeres. Elige otro asiento.`
+            : `El asiento ${asiento.numeroAsiento} es exclusivo para mujeres: indica el sexo del pasajero.`,
+        );
       }
 
       // Item 31, Fase 7 (11-ago-2026) -- mismo criterio de dueno que
@@ -295,6 +310,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
         ivaMonto: Number(ivaMonto.toFixed(2)),
         ivaVisible: f.ivaVisibleEnBoleto,
         esVip,
+        soloMujeres,
       });
     }
 
@@ -372,6 +388,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
           documento: p.documento,
           tipoTarifa: p.tipoTarifa,
           esEmbarazada: p.esEmbarazada ?? false,
+          sexo: p.sexo ?? null,
           numeroDocumentoDiscapacidad: p.numeroDocumentoDiscapacidad ?? null,
           fechaNacimiento: p.fechaNacimiento,
           esMenorEdad: esMenorDeEdad(p.tipoTarifa, p.fechaNacimiento),
@@ -1137,6 +1154,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
         documento: pasajerosCompra.documento,
         tipoTarifa: pasajerosCompra.tipoTarifa,
         fechaNacimiento: pasajerosCompra.fechaNacimiento,
+        sexo: pasajerosCompra.sexo,
       })
       .from(boletos)
       .innerJoin(compras, eq(boletos.compraId, compras.id))

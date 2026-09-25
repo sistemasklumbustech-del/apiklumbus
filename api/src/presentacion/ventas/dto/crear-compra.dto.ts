@@ -138,6 +138,11 @@ export class PasajeroCheckoutDto {
   @IsBoolean()
   esEmbarazada?: boolean;
 
+  /** Sexo declarado; obligatorio solo si el asiento es exclusivo para mujeres (25-sep-2026). */
+  @IsOptional()
+  @IsIn(['femenino', 'masculino'])
+  sexo?: 'femenino' | 'masculino';
+
   @IsOptional()
   @ValidateNested()
   @Type(() => AutorizacionMenorDto)
