@@ -2,6 +2,8 @@
  * Dominio de ventas — RF-CHECK, RN-001, RN-002.
  */
 
+import type { BoletoCorreo } from '../auth/auth.ports';
+
 export type TipoTarifa = 'adulto' | 'nino' | 'tercera_edad' | 'discapacidad';
 
 /**
@@ -515,9 +517,19 @@ export interface CompraRepositorio {
   obtenerContactoSoporte(): Promise<{ correo: string | null; telefono: string | null }>;
 
   /** Monto total y ids de boletos de una compra, para armar el correo de confirmacion. */
-  obtenerResumenNotificacionCompra(
-    compraId: string,
-  ): Promise<{ montoTotal: number; boletoIds: string[] } | null>;
+  obtenerResumenNotificacionCompra(compraId: string): Promise<{
+    montoTotal: number;
+    boletoIds: string[];
+    /** Cada boleto con su viaje (ruta, salida, asiento), en orden de salida -- para ida y vuelta. */
+    boletos: {
+      id: string;
+      asiento: string;
+      cooperativa: string;
+      origenCiudad: string;
+      destinoCiudad: string;
+      horaSalida: Date | string;
+    }[];
+  } | null>;
 
   /** Registra y envia (via NotificadorEmail) la confirmacion de una compra ya aprobada. Nunca lanza -- si falla, queda registrado como fallido, sin afectar la venta. */
   notificarCompraConfirmada(
@@ -525,6 +537,7 @@ export interface CompraRepositorio {
     montoTotal: number,
     cantidadBoletos: number,
     adjuntos?: { nombreArchivo: string; contenido: Buffer }[],
+    detalleBoletos?: BoletoCorreo[],
   ): Promise<void>;
 
   /**

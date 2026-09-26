@@ -1,7 +1,10 @@
 import { Inject, Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { eq, and, sql, isNull, SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import type { NotificadorEmail } from '../../dominio/auth/auth.ports';
+import type {
+  BoletoCorreo,
+  NotificadorEmail,
+} from '../../dominio/auth/auth.ports';
 import { NOTIFICADOR_EMAIL } from '../../aplicacion/auth/auth.service';
 import { randomUUID } from 'node:crypto';
 import {
@@ -1564,7 +1567,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
 
   async obtenerResumenNotificacionCompra(
     compraId: string,
-  ): Promise<{ montoTotal: number; boletoIds: string[] } | null> {
+  ): ReturnType<CompraRepositorio['obtenerResumenNotificacionCompra']> {
     const filas = await this.dbPublico.execute(sql`
       SELECT c.monto_total,
              COALESCE(
@@ -1576,7 +1579,41 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
     `);
     const fila = filas.rows[0] as { monto_total: string; boleto_ids: string[] } | undefined;
     if (!fila) return null;
-    return { montoTotal: Number(fila.monto_total), boletoIds: fila.boleto_ids };
+    const detalle = await this.dbPublico.execute(sql`
+      SELECT b.id::text AS id, va.numero_asiento, co.nombre_comercial,
+             ori.ciudad AS origen_ciudad, dest.ciudad AS destino_ciudad,
+             v.hora_salida_programada
+      FROM boletos b
+      JOIN viaje_asientos va ON va.id = b.viaje_asiento_id
+      JOIN viajes v ON v.id = va.viaje_id
+      JOIN rutas r ON r.id = v.ruta_id
+      JOIN puntos_operacion ori ON ori.id = r.origen_punto_operacion_id
+      JOIN puntos_operacion dest ON dest.id = r.destino_punto_operacion_id
+      JOIN cooperativas co ON co.id = b.cooperativa_id
+      WHERE b.compra_id = ${compraId}
+      ORDER BY v.hora_salida_programada, va.numero_asiento
+    `);
+    return {
+      montoTotal: Number(fila.monto_total),
+      boletoIds: fila.boleto_ids,
+      boletos: (
+        detalle.rows as unknown as {
+          id: string;
+          numero_asiento: string;
+          nombre_comercial: string;
+          origen_ciudad: string;
+          destino_ciudad: string;
+          hora_salida_programada: Date | string;
+        }[]
+      ).map((d) => ({
+        id: d.id,
+        asiento: d.numero_asiento,
+        cooperativa: d.nombre_comercial,
+        origenCiudad: d.origen_ciudad,
+        destinoCiudad: d.destino_ciudad,
+        horaSalida: d.hora_salida_programada,
+      })),
+    };
   }
 
   async notificarCompraConfirmada(
@@ -1584,6 +1621,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
     montoTotal: number,
     cantidadBoletos: number,
     adjuntos?: { nombreArchivo: string; contenido: Buffer }[],
+    detalleBoletos?: BoletoCorreo[],
   ): Promise<void> {
     // El correo de contacto declarado en la compra tiene prioridad: una
     // venta de ventanilla o de invitado no tiene cuenta, y aun con cuenta
@@ -1615,7 +1653,13 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
     try {
       await this.email.enviarConfirmacionCompra(
         fila.correo,
-        { compraId, montoTotal, cantidadBoletos, tieneCuenta: fila.tiene_cuenta },
+        {
+          compraId,
+          montoTotal,
+          cantidadBoletos,
+          tieneCuenta: fila.tiene_cuenta,
+          boletos: detalleBoletos,
+        },
         adjuntos,
       );
       await this.dbPublico

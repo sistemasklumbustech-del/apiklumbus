@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
-import type { AdjuntoCorreo, NotificadorEmail } from '../../dominio/auth/auth.ports';
+import type {
+  AdjuntoCorreo,
+  BoletoCorreo,
+  NotificadorEmail,
+} from '../../dominio/auth/auth.ports';
 
 const REMITENTE = 'Klumbus <notificaciones@klumbustech.com>';
 const URL_FRONTEND = 'https://klumbustech.com';
@@ -95,10 +99,24 @@ export class ResendNotificador implements NotificadorEmail {
       montoTotal: number;
       cantidadBoletos: number;
       tieneCuenta?: boolean;
+      boletos?: BoletoCorreo[];
     },
     adjuntos?: AdjuntoCorreo[],
   ): Promise<void> {
     const hayAdjuntos = !!adjuntos && adjuntos.length > 0;
+    const filasBoletos = (detalle.boletos ?? [])
+      .map(
+        (b) => `
+          <tr>
+            <td style="padding:10px 0; border-top:1px solid #e5e7eb;">
+              ${b.tramo ? `<span style="display:inline-block; background:#f5a623; color:#1a1a2e; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; margin-bottom:4px;">${b.tramo === 'ida' ? 'IDA' : 'VUELTA'}</span><br/>` : ''}
+              <strong style="font-size:15px;">${escaparHtml(b.ruta)}</strong><br/>
+              <strong>${escaparHtml(b.fecha)} · ${escaparHtml(b.hora)}</strong><br/>
+              <span style="color:#6b7280;">Asiento ${escaparHtml(b.asiento)} · ${escaparHtml(b.cooperativa)}</span>
+            </td>
+          </tr>`,
+      )
+      .join('');
     await this.enviar({
       from: REMITENTE,
       to: correo,
@@ -117,6 +135,11 @@ export class ResendNotificador implements NotificadorEmail {
             <tr><td style="padding:6px 0; color:#6b7280;">Boletos</td><td style="padding:6px 0; text-align:right;">${detalle.cantidadBoletos}</td></tr>
             <tr><td style="padding:6px 0; color:#6b7280; font-weight:700;">Total pagado</td><td style="padding:6px 0; text-align:right; font-weight:700;">$${detalle.montoTotal.toFixed(2)}</td></tr>
           </table>
+          ${
+            filasBoletos
+              ? `<table style="width:100%; font-size:14px; margin: 8px 0 16px; border-collapse: collapse;">${filasBoletos}</table>`
+              : ''
+          }
           ${
             hayAdjuntos
               ? `<p style="font-size: 14px; line-height: 1.6;">Adjuntamos tu${detalle.cantidadBoletos > 1 ? 's' : ''} boleto${detalle.cantidadBoletos > 1 ? 's' : ''} en PDF, con el código QR. Presentá el QR (en el celular o impreso) al abordar.</p>`

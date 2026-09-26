@@ -232,6 +232,16 @@ export interface AdjuntoCorreo {
   contenido: Buffer;
 }
 
+/** Un boleto tal como se lista en el correo de confirmación: en una compra de ida y vuelta cada uno lleva su propio tramo, ruta, fecha y hora. */
+export interface BoletoCorreo {
+  tramo: 'ida' | 'vuelta' | null;
+  ruta: string;
+  fecha: string;
+  hora: string;
+  asiento: string;
+  cooperativa: string;
+}
+
 export interface NotificadorEmail {
   enviarResetPassword(correo: string, tokenPlano: string): Promise<void>;
 
@@ -243,6 +253,8 @@ export interface NotificadorEmail {
       cantidadBoletos: number;
       /** Solo si el comprador tiene cuenta: habilita el enlace a "Mis boletos". */
       tieneCuenta?: boolean;
+      /** Cada boleto con su tramo, ruta, fecha, hora y asiento (26-sep-2026). */
+      boletos?: BoletoCorreo[];
     },
     adjuntos?: AdjuntoCorreo[],
   ): Promise<void>;

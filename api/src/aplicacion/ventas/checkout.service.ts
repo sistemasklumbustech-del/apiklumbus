@@ -1,4 +1,10 @@
-import { Inject, Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type {
   CompraRepositorio,
@@ -9,7 +15,10 @@ import type {
   FiltrosHistorialPagos,
 } from '../../dominio/ventas/ventas.ports';
 import { esMenorDeEdad } from '../../dominio/ventas/ventas.ports';
-import type { AlmacenamientoArchivos } from '../../dominio/auth/auth.ports';
+import type {
+  AlmacenamientoArchivos,
+  BoletoCorreo,
+} from '../../dominio/auth/auth.ports';
 import { ALMACENAMIENTO_ARCHIVOS } from '../auth/auth.service';
 import type { ProveedorFacturacionElectronica } from '../../dominio/facturacion/facturacion.ports';
 import { DespachadorWebhooksService } from '../webhooks/despachador-webhooks.service';
@@ -55,6 +64,8 @@ function formatearHoraBoleto(hora: Date): string {
 
 @Injectable()
 export class CheckoutService {
+  private readonly logger = new Logger(CheckoutService.name);
+
   constructor(
     @Inject(COMPRA_REPOSITORIO) private readonly compras: CompraRepositorio,
     @Inject(PASARELA_PAGO) private readonly pasarela: PasarelaPago,
@@ -480,16 +491,68 @@ export class CheckoutService {
     try {
       const resumen = await this.compras.obtenerResumenNotificacionCompra(compraId);
       if (!resumen) return;
+      // Ida y vuelta (26-sep-2026): si la compra tiene boletos de dos viajes
+      // distintos, el más temprano es la IDA y el otro la VUELTA. Cada boleto
+      // sale en su propio PDF, con el tramo y la ruta en el nombre del archivo.
+      const clavesViaje = Array.from(
+        new Set(
+          resumen.boletos.map(
+            (b) => `${b.origenCiudad}>${b.destinoCiudad}|${new Date(b.horaSalida).getTime()}`,
+          ),
+        ),
+      );
+      const tramoDe = (b: (typeof resumen.boletos)[number]): 'ida' | 'vuelta' | null => {
+        if (clavesViaje.length !== 2) return null;
+        const clave = `${b.origenCiudad}>${b.destinoCiudad}|${new Date(b.horaSalida).getTime()}`;
+        return clavesViaje.indexOf(clave) === 0 ? 'ida' : 'vuelta';
+      };
+      const dia = (d: Date | string) =>
+        new Date(d).toLocaleDateString('es-EC', {
+          timeZone: 'America/Guayaquil',
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+        });
+      const hora = (d: Date | string) =>
+        new Date(d)
+          .toLocaleTimeString('es-EC', {
+            timeZone: 'America/Guayaquil',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          })
+          .replace(/[\u202f\u00a0]/g, ' ');
+      const limpiar = (t: string) =>
+        t
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '');
+
       const adjuntos: { nombreArchivo: string; contenido: Buffer }[] = [];
-      for (const boletoId of resumen.boletoIds) {
+      const detalleBoletos: BoletoCorreo[] = [];
+      for (const b of resumen.boletos) {
+        const tramo = tramoDe(b);
+        detalleBoletos.push({
+          tramo,
+          ruta: `${b.origenCiudad} → ${b.destinoCiudad}`,
+          fecha: dia(b.horaSalida),
+          hora: hora(b.horaSalida),
+          asiento: b.asiento,
+          cooperativa: b.cooperativa,
+        });
         try {
-          const contenido = await this.generarPdfBoleto(boletoId, null);
+          const contenido = await this.generarPdfBoleto(b.id, null);
           adjuntos.push({
-            nombreArchivo: `boleto-${boletoId.slice(0, 8)}.pdf`,
+            nombreArchivo: `boleto-${tramo ? tramo + '-' : ''}${limpiar(b.origenCiudad)}-${limpiar(b.destinoCiudad)}-asiento-${limpiar(b.asiento)}.pdf`,
             contenido,
           });
-        } catch {
-          // Si un PDF falla, el correo sale igual con los demas.
+        } catch (error) {
+          // Si un PDF falla, el correo sale igual con los demás -- pero queda en el log.
+          this.logger.warn(
+            `No se pudo generar el PDF del boleto ${b.id} de la compra ${compraId}: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }
       await this.compras.notificarCompraConfirmada(
@@ -497,9 +560,13 @@ export class CheckoutService {
         resumen.montoTotal,
         resumen.boletoIds.length,
         adjuntos,
+        detalleBoletos,
       );
-    } catch {
-      // Silencioso a proposito -- ver el comentario del metodo.
+    } catch (error) {
+      // No revierte la venta ya confirmada, pero se deja constancia en el log.
+      this.logger.error(
+        `No se pudo enviar el correo de la compra ${compraId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
