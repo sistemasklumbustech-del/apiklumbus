@@ -116,6 +116,12 @@ export class BusquedaController {
     return this.busqueda.listarRutasDisponibles();
   }
 
+  /** Catálogo público de rutas con horarios, para la página "Rutas" del menú (26-sep-2026). */
+  @Get('catalogo-rutas')
+  async listarCatalogoRutas() {
+    return this.busqueda.listarCatalogoRutas();
+  }
+
   /**
    * Fase 7-portada (07-ago-2026) -- contador real de cooperativas
    * activas y rutas disponibles, para la prueba social de la portada.

@@ -617,6 +617,117 @@ export class BusquedaService {
   }
 
   /**
+   * Catálogo público de rutas (26-sep-2026) -- para la página "Rutas" del
+   * menú: cada ruta activa de una cooperativa aprobada, con sus horarios
+   * (hora, días, tipo de vehículo), el precio de referencia y lo necesario
+   * para estimar el tiempo de viaje. Sin autenticación. Solo datos que ya
+   * son públicos en la búsqueda; nada interno de la cooperativa.
+   */
+  async listarCatalogoRutas() {
+    const rutasR = await this.db.execute(sql`
+      SELECT r.id AS ruta_id, r.nombre, r.precio_base_referencia, r.duracion_estimada_minutos,
+             r.distancia_km, co.id AS cooperativa_id, co.nombre_comercial, co.logo_url,
+             ori.id AS origen_id, ori.ciudad AS origen_ciudad, ori.nombre AS origen_nombre,
+             ori.latitud AS origen_latitud, ori.longitud AS origen_longitud,
+             dest.id AS destino_id, dest.ciudad AS destino_ciudad, dest.nombre AS destino_nombre,
+             dest.latitud AS destino_latitud, dest.longitud AS destino_longitud
+      FROM rutas r
+      JOIN cooperativas co ON co.id = r.cooperativa_id AND co.estado = 'aprobada'
+      JOIN puntos_operacion ori ON ori.id = r.origen_punto_operacion_id AND ori.estado = 'aprobado'
+      JOIN puntos_operacion dest ON dest.id = r.destino_punto_operacion_id AND dest.estado = 'aprobado'
+      WHERE r.activa = true
+      ORDER BY ori.ciudad, dest.ciudad, co.nombre_comercial
+    `);
+    const filasRutas = rutasR.rows as unknown as {
+      ruta_id: string;
+      nombre: string | null;
+      precio_base_referencia: string;
+      duracion_estimada_minutos: number | null;
+      distancia_km: number | null;
+      cooperativa_id: string;
+      nombre_comercial: string;
+      logo_url: string | null;
+      origen_id: string;
+      origen_ciudad: string;
+      origen_nombre: string;
+      origen_latitud: string | null;
+      origen_longitud: string | null;
+      destino_id: string;
+      destino_ciudad: string;
+      destino_nombre: string;
+      destino_latitud: string | null;
+      destino_longitud: string | null;
+    }[];
+    if (filasRutas.length === 0) return [];
+
+    const horariosR = await this.db.execute(sql`
+      SELECT hr.ruta_id, to_char(hr.hora_salida, 'HH24:MI') AS hora, hr.dias_semana,
+             tv.nombre AS tipo_vehiculo
+      FROM horarios_ruta hr
+      LEFT JOIN tipos_vehiculo tv ON tv.id = hr.tipo_vehiculo_predeterminado_id
+      WHERE hr.activo = true
+      ORDER BY hr.hora_salida
+    `);
+    const horariosPorRuta = new Map<
+      string,
+      { hora: string; dias: number[]; tipoVehiculo: string | null }[]
+    >();
+    for (const h of horariosR.rows as unknown as {
+      ruta_id: string;
+      hora: string;
+      dias_semana: unknown;
+      tipo_vehiculo: string | null;
+    }[]) {
+      const lista = horariosPorRuta.get(h.ruta_id) ?? [];
+      lista.push({
+        hora: h.hora,
+        dias: Array.isArray(h.dias_semana) ? (h.dias_semana as number[]) : [],
+        tipoVehiculo: h.tipo_vehiculo,
+      });
+      horariosPorRuta.set(h.ruta_id, lista);
+    }
+
+    // Se agrupa por par de ciudades: una tarjeta por "Quito → Guayaquil" con todas las cooperativas que la operan.
+    const pares = new Map<
+      string,
+      {
+        origenCiudad: string;
+        destinoCiudad: string;
+        opciones: unknown[];
+      }
+    >();
+    for (const f of filasRutas) {
+      const clave = `${f.origen_ciudad}>${f.destino_ciudad}`;
+      const par = pares.get(clave) ?? {
+        origenCiudad: f.origen_ciudad,
+        destinoCiudad: f.destino_ciudad,
+        opciones: [],
+      };
+      par.opciones.push({
+        rutaId: f.ruta_id,
+        nombreRuta: f.nombre,
+        cooperativaId: f.cooperativa_id,
+        cooperativaNombre: f.nombre_comercial,
+        cooperativaLogoUrl: f.logo_url,
+        precioReferencia: Number(f.precio_base_referencia),
+        duracionEstimadaMinutos: f.duracion_estimada_minutos,
+        distanciaKm: f.distancia_km,
+        origenId: f.origen_id,
+        origenNombre: f.origen_nombre,
+        origenLatitud: f.origen_latitud,
+        origenLongitud: f.origen_longitud,
+        destinoId: f.destino_id,
+        destinoNombre: f.destino_nombre,
+        destinoLatitud: f.destino_latitud,
+        destinoLongitud: f.destino_longitud,
+        horarios: horariosPorRuta.get(f.ruta_id) ?? [],
+      });
+      pares.set(clave, par);
+    }
+    return [...pares.values()];
+  }
+
+  /**
    * Fase 2-portada (16-ago-2026) -- terminales aliadas reales para la
    * portada. Lista TODAS las terminales aprobadas, sin depender de
    * que ya tengan una ruta real asociada -- una terminal recién
