@@ -298,6 +298,23 @@ export interface NotificadorEmail {
       ruta: string;
     },
   ): Promise<void>;
+
+  /**
+   * Consulta de ayuda (26-sep-2026) -- llega al correo de soporte de la
+   * plataforma; el correo de quien escribe va como "responder a", para que
+   * soporte conteste directo desde su bandeja.
+   */
+  enviarConsultaSoporte(
+    destino: string,
+    consulta: {
+      referencia: string;
+      nombre: string;
+      correo: string;
+      tipo: string;
+      mensaje: string;
+      codigoReferencia?: string;
+    },
+  ): Promise<void>;
 }
 
 /**
