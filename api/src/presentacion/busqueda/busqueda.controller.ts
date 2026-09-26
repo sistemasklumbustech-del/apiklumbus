@@ -116,6 +116,12 @@ export class BusquedaController {
     return this.busqueda.listarRutasDisponibles();
   }
 
+  /** Cooperativas públicas con sus servicios, beneficios y flota, para la página "Cooperativas" del menú (26-sep-2026). */
+  @Get('cooperativas-publicas')
+  async listarCooperativasPublicas() {
+    return this.busqueda.listarCooperativasPublicas();
+  }
+
   /** Catálogo público de rutas con horarios, para la página "Rutas" del menú (26-sep-2026). */
   @Get('catalogo-rutas')
   async listarCatalogoRutas() {

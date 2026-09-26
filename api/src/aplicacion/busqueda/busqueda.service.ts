@@ -617,6 +617,102 @@ export class BusquedaService {
   }
 
   /**
+   * Cooperativas públicas (26-sep-2026) -- página "Cooperativas" del menú:
+   * cada cooperativa aprobada con lo que ella cuenta de sí (descripción,
+   * servicios, beneficios) y lo que el sistema sabe de verdad: su flota
+   * (tipos de vehículo con unidades activas, pisos, amenidades), las
+   * ciudades que sirve y cuántas rutas opera. Sin autenticación.
+   */
+  async listarCooperativasPublicas() {
+    const coops = await this.db.execute(sql`
+      SELECT id, nombre_comercial, logo_url, descripcion_publica,
+             servicios_publicos, beneficios_publicos
+      FROM cooperativas
+      WHERE estado = 'aprobada'
+      ORDER BY nombre_comercial
+    `);
+    const flota = await this.db.execute(sql`
+      SELECT tv.cooperativa_id, tv.nombre, tv.categoria::text AS categoria, tv.capacidad_total,
+             tv.amenidades::text[] AS amenidades,
+             CASE WHEN jsonb_typeof(tv.distribucion_asientos->'pisos') = 'array'
+                  THEN jsonb_array_length(tv.distribucion_asientos->'pisos') ELSE 1 END AS pisos,
+             COUNT(u.id) FILTER (WHERE u.activo) AS unidades
+      FROM tipos_vehiculo tv
+      LEFT JOIN unidades u ON u.tipo_vehiculo_id = tv.id
+      WHERE tv.activo = true
+      GROUP BY tv.id
+      HAVING COUNT(u.id) FILTER (WHERE u.activo) > 0
+      ORDER BY tv.nombre
+    `);
+    const cobertura = await this.db.execute(sql`
+      SELECT r.cooperativa_id, COUNT(DISTINCT r.id)::int AS rutas,
+             ARRAY_AGG(DISTINCT v.ciudad ORDER BY v.ciudad) AS ciudades
+      FROM rutas r
+      JOIN puntos_operacion ori ON ori.id = r.origen_punto_operacion_id AND ori.estado = 'aprobado'
+      JOIN puntos_operacion dest ON dest.id = r.destino_punto_operacion_id AND dest.estado = 'aprobado'
+      CROSS JOIN LATERAL (VALUES (ori.ciudad), (dest.ciudad)) AS v(ciudad)
+      WHERE r.activa = true
+      GROUP BY r.cooperativa_id
+    `);
+
+    const flotaPor = new Map<string, unknown[]>();
+    for (const f of flota.rows as unknown as {
+      cooperativa_id: string;
+      nombre: string;
+      categoria: string | null;
+      capacidad_total: number;
+      amenidades: string[] | null;
+      pisos: number;
+      unidades: string | number;
+    }[]) {
+      const lista = flotaPor.get(f.cooperativa_id) ?? [];
+      lista.push({
+        nombre: f.nombre,
+        categoria: f.categoria,
+        capacidadTotal: f.capacidad_total,
+        amenidades: f.amenidades ?? [],
+        pisos: Number(f.pisos),
+        unidades: Number(f.unidades),
+      });
+      flotaPor.set(f.cooperativa_id, lista);
+    }
+    const coberturaPor = new Map<string, { rutas: number; ciudades: string[] }>();
+    for (const c of cobertura.rows as unknown as {
+      cooperativa_id: string;
+      rutas: number;
+      ciudades: string[];
+    }[]) {
+      coberturaPor.set(c.cooperativa_id, {
+        rutas: c.rutas,
+        ciudades: c.ciudades ?? [],
+      });
+    }
+    const aLista = (v: unknown) =>
+      Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+
+    return (
+      coops.rows as unknown as {
+        id: string;
+        nombre_comercial: string;
+        logo_url: string | null;
+        descripcion_publica: string | null;
+        servicios_publicos: unknown;
+        beneficios_publicos: unknown;
+      }[]
+    ).map((c) => ({
+      id: c.id,
+      nombre: c.nombre_comercial,
+      logoUrl: c.logo_url,
+      descripcion: c.descripcion_publica,
+      servicios: aLista(c.servicios_publicos),
+      beneficios: aLista(c.beneficios_publicos),
+      flota: flotaPor.get(c.id) ?? [],
+      rutas: coberturaPor.get(c.id)?.rutas ?? 0,
+      ciudades: coberturaPor.get(c.id)?.ciudades ?? [],
+    }));
+  }
+
+  /**
    * Catálogo público de rutas (26-sep-2026) -- para la página "Rutas" del
    * menú: cada ruta activa de una cooperativa aprobada, con sus horarios
    * (hora, días, tipo de vehículo), el precio de referencia y lo necesario

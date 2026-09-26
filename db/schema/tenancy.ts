@@ -18,6 +18,7 @@ import {
   timestamp,
   boolean,
   integer,
+  jsonb,
   index,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
@@ -87,6 +88,13 @@ export const cooperativas = pgTable(
     // archivos propio todavía, sería sobre-construcción para lo que se
     // necesita hoy. Nullable: no toda cooperativa tiene logo cargado.
     logoUrl: text('logo_url'),
+
+    // Perfil público (26-sep-2026) -- página "Cooperativas": la cooperativa
+    // cuenta quién es, qué servicios presta y qué beneficios da. La flota y
+    // las ciudades que sirve se calculan de sus unidades y rutas.
+    descripcionPublica: text('descripcion_publica'),
+    serviciosPublicos: jsonb('servicios_publicos').default([]).notNull(),
+    beneficiosPublicos: jsonb('beneficios_publicos').default([]).notNull(),
 
     // Reprogramación con crédito (28-jul-2026, Fase C) — horas mínimas
     // antes de la salida programada para poder reprogramar un boleto.
