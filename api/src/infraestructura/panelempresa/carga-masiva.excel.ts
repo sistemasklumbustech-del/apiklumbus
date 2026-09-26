@@ -73,7 +73,15 @@ const HOJA = {
 } as const;
 
 const ENCABEZADOS = {
-  tipos: ['Nombre', 'Capacidad (asientos)'],
+  tipos: [
+    'Nombre',
+    'Capacidad (asientos)',
+    'Pisos: 1 o 2 (opcional)',
+    'Asientos del piso 1 (solo dobles, opcional)',
+    'Piso 1 VIP: Sí/No (opcional)',
+    'Baño a bordo: Sí/No (opcional)',
+    'Filas del frente solo mujeres (opcional)',
+  ],
   conductores: [
     'Nombre completo',
     'Cédula',
@@ -101,6 +109,71 @@ export function normalizar(texto: string): string {
     .trim();
 }
 
+// ------------------------------------------------- distribución de asientos
+
+type PosicionServicio = 'frente' | 'atras' | 'ninguno';
+interface ConfigPisoImport {
+  nombre: string;
+  asientos: number;
+  patron: Array<string | null>;
+  vip: boolean;
+  bano: PosicionServicio;
+  escalera: PosicionServicio;
+}
+
+const PATRON_2_2: Array<string | null> = ['A', 'B', null, 'C', 'D'];
+const PATRON_2_1: Array<string | null> = ['A', 'B', null, 'C'];
+
+/**
+ * Arma la distribución de asientos (mismo formato que el constructor de la
+ * pantalla de Unidades): numeración corrida entre pisos, piso VIP heredado,
+ * baño y escalera, y las primeras filas del piso principal como "mujeres".
+ */
+function construirDistribucion(
+  pisosCfg: ConfigPisoImport[],
+  filasMujeres: number,
+): { pisos: unknown[]; filasDelPisoPrincipal: number } {
+  let numeroFila = 1;
+  const indicePrincipal = pisosCfg.length - 1;
+  let filasDelPisoPrincipal = 0;
+  const pisos = pisosCfg.map((cfg, indice) => {
+    const porFila = cfg.patron.filter((p) => p !== null).length;
+    const filas: { celdas: unknown[] }[] = [];
+    let restante = cfg.asientos;
+    while (restante > 0) {
+      let colocados = 0;
+      const marcarMujeres =
+        indice === indicePrincipal && filas.length < filasMujeres;
+      const celdas = cfg.patron.map((letra) => {
+        if (letra === null || colocados >= restante) return null;
+        colocados += 1;
+        const numero = `${numeroFila}${letra}`;
+        return marcarMujeres ? { numero, etiquetas: ['mujeres'] } : numero;
+      });
+      filas.push({ celdas });
+      restante -= Math.min(porFila, restante);
+      numeroFila += 1;
+    }
+    if (indice === indicePrincipal) filasDelPisoPrincipal = filas.length;
+    return {
+      nombre: cfg.nombre,
+      ...(cfg.vip ? { categoria: 'vip' } : {}),
+      bano: cfg.bano,
+      escalera: cfg.escalera,
+      filas,
+    };
+  });
+  return { pisos, filasDelPisoPrincipal };
+}
+
+function interpretarSiNo(valor: ExcelJS.CellValue): boolean | null {
+  const t = normalizar(textoDeCelda(valor));
+  if (t === '') return null;
+  if (['si', 's', 'yes', 'true', '1'].includes(t)) return true;
+  if (['no', 'n', 'false', '0'].includes(t)) return false;
+  return undefined as unknown as null;
+}
+
 // ---------------------------------------------------------------- plantilla
 
 export async function generarPlantilla(
@@ -116,7 +189,7 @@ export async function generarPlantilla(
     '',
     '1. Llena solo las hojas que necesites; las demás pueden quedar vacías. Empieza cada hoja en la fila 2 (la fila 1 es el encabezado, no la borres).',
     '2. Escribe NOMBRES, nunca códigos: las ciudades como aparecen en la hoja "Terminales y ciudades", los tipos de vehículo como los escribiste en la hoja "Tipos de vehículo" (o como ya los tienes creados).',
-    '3. Tipos de vehículo: nombre y cantidad de asientos. Puedes armar los pisos, VIP y baño después en Unidades.',
+    '3. Tipos de vehículo: nombre y cantidad de asientos. Opcional: Pisos (1 o 2); en un doble piso, los asientos del piso 1 (el resto va arriba), si el piso 1 es VIP (Sí/No), si tiene baño a bordo (Sí/No) y cuántas filas del frente del piso principal son solo para mujeres. Sin esas columnas se crea un bus de un piso 2+2.',
     '4. Conductores: cédula ecuatoriana de 10 dígitos. Unidades: placa como ABC-1234.',
     '5. Rutas: origen y destino (ciudad o nombre del terminal) y el precio base. Si una ciudad tiene varios terminales, escribe el nombre exacto del terminal.',
     '6. Horarios: la ruta (su nombre o "Origen - Destino"), el tipo de vehículo, la hora de salida en formato 24 horas (08:00, 14:30) y los días. Días: "Lunes a viernes", "Todos", "L-V", "L,M,X,J,V,S,D" (X = miércoles).',
@@ -156,7 +229,7 @@ export async function generarPlantilla(
     return hoja;
   };
 
-  agregarHoja(HOJA.tipos, ENCABEZADOS.tipos, [32, 22]);
+  agregarHoja(HOJA.tipos, ENCABEZADOS.tipos, [32, 22, 22, 30, 26, 26, 34]);
   agregarHoja(HOJA.conductores, ENCABEZADOS.conductores, [34, 16, 26, 28, 20]);
   agregarHoja(HOJA.unidades, ENCABEZADOS.unidades, [30, 16, 28]);
   agregarHoja(HOJA.rutas, ENCABEZADOS.rutas, [28, 28, 20, 30]);
@@ -218,7 +291,7 @@ function leerHoja(libro: ExcelJS.Workbook, nombre: string): FilaLeida[] {
   hoja.eachRow({ includeEmpty: false }, (fila, numero) => {
     if (numero === 1) return; // encabezado
     const celdas: ExcelJS.CellValue[] = [];
-    for (let c = 1; c <= 6; c++) celdas.push(fila.getCell(c).value);
+    for (let c = 1; c <= 8; c++) celdas.push(fila.getCell(c).value);
     if (celdas.every((c) => textoDeCelda(c) === '')) return;
     filas.push({ numero, celdas });
   });
@@ -407,9 +480,117 @@ export async function analizarPlantilla(
       );
       continue;
     }
+    // Distribución de asientos (opcional): pisos, VIP, baño y filas de mujeres.
+    const textoPisos = textoDeCelda(f.celdas[2]);
+    const pisosNum = textoPisos === '' ? 1 : interpretarNumero(f.celdas[2]);
+    if (pisosNum !== 1 && pisosNum !== 2) {
+      err(
+        HOJA.tipos,
+        f.numero,
+        'Pisos debe ser 1 o 2 (o déjalo vacío para un piso).',
+      );
+      continue;
+    }
+    const vipTexto = interpretarSiNo(f.celdas[4]);
+    const banoTexto = interpretarSiNo(f.celdas[5]);
+    if (vipTexto === undefined || banoTexto === undefined) {
+      err(
+        HOJA.tipos,
+        f.numero,
+        'En VIP y Baño escribe Sí o No (o déjalo vacío).',
+      );
+      continue;
+    }
+    const textoMujeres = textoDeCelda(f.celdas[6]);
+    const filasMujeres =
+      textoMujeres === '' ? 0 : interpretarNumero(f.celdas[6]);
+    if (
+      filasMujeres === null ||
+      !Number.isInteger(filasMujeres) ||
+      filasMujeres < 0
+    ) {
+      err(
+        HOJA.tipos,
+        f.numero,
+        'Las filas solo para mujeres deben ser un número entero (0 o más).',
+      );
+      continue;
+    }
+    let distribucionAsientos: unknown;
+    const hayConfiguracion =
+      pisosNum === 2 ||
+      banoTexto === true ||
+      vipTexto === true ||
+      filasMujeres > 0;
+    if (hayConfiguracion) {
+      let cfg: ConfigPisoImport[];
+      if (pisosNum === 2) {
+        const textoP1 = textoDeCelda(f.celdas[3]);
+        const asientosP1 =
+          textoP1 === '' ? null : interpretarNumero(f.celdas[3]);
+        if (
+          asientosP1 === null ||
+          !Number.isInteger(asientosP1) ||
+          asientosP1 < 1 ||
+          asientosP1 >= capacidad
+        ) {
+          err(
+            HOJA.tipos,
+            f.numero,
+            'En un doble piso indica cuántos asientos tiene el piso 1 (menos que la capacidad total; el resto queda arriba).',
+          );
+          continue;
+        }
+        const piso1Vip = vipTexto ?? true;
+        cfg = [
+          {
+            nombre: 'Piso 1',
+            asientos: asientosP1,
+            patron: piso1Vip ? PATRON_2_1 : PATRON_2_2,
+            vip: piso1Vip,
+            bano: banoTexto ? 'atras' : 'ninguno',
+            escalera: 'frente',
+          },
+          {
+            nombre: 'Piso 2',
+            asientos: capacidad - asientosP1,
+            patron: PATRON_2_2,
+            vip: false,
+            bano: 'ninguno',
+            escalera: 'frente',
+          },
+        ];
+      } else {
+        cfg = [
+          {
+            nombre: 'Piso único',
+            asientos: capacidad,
+            patron: PATRON_2_2,
+            vip: vipTexto === true,
+            bano: banoTexto ? 'atras' : 'ninguno',
+            escalera: 'ninguno',
+          },
+        ];
+      }
+      const armado = construirDistribucion(cfg, filasMujeres);
+      if (filasMujeres > armado.filasDelPisoPrincipal) {
+        err(
+          HOJA.tipos,
+          f.numero,
+          `Pediste ${filasMujeres} filas solo para mujeres, pero el piso principal tiene ${armado.filasDelPisoPrincipal} filas.`,
+        );
+        continue;
+      }
+      distribucionAsientos = { pisos: armado.pisos };
+    }
     const ref = `t${tipos.length + 1}`;
     tiposNuevos.set(clave, ref);
-    tipos.push({ ref, nombre, capacidadTotal: capacidad });
+    tipos.push({
+      ref,
+      nombre,
+      capacidadTotal: capacidad,
+      ...(distribucionAsientos ? { distribucionAsientos } : {}),
+    });
   }
   const resolverTipo = (
     texto: string,
