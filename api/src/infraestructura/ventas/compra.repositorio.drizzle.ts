@@ -772,7 +772,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
       // de setVentaPasaje en vez de quedar en 'pendiente'.
       const registroRows = await tx.execute(
         sql`INSERT INTO registros_tasa_terminal (cooperativa_id, compra_id, clave_idempotencia, solicitud_payload)
-            VALUES (${cooperativaId}, ${pago.compraId}, ${`registro-${pago.compraId}`}, ${JSON.stringify({ nota: 'SIAT3000 no conectado todavía -- registro local generado al confirmar el pago.' })}::jsonb)
+            VALUES (${cooperativaId}, ${pago.compraId}, ${`registro-${pago.compraId}-${cooperativaId}`}, ${JSON.stringify({ nota: 'SIAT3000 no conectado todavía -- registro local generado al confirmar el pago.' })}::jsonb)
             RETURNING id`,
       );
       const registroTasaTerminalId = (registroRows.rows[0] as { id: string }).id;
@@ -908,7 +908,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
         // (RN-004), compartido por todos los boletos de esta cooperativa.
         const registroRows = await tx.execute(
           sql`INSERT INTO registros_tasa_terminal (cooperativa_id, compra_id, clave_idempotencia, solicitud_payload)
-              VALUES (${cooperativaId}, ${compraId}, ${`registro-${compraId}`}, ${JSON.stringify({ nota: 'SIAT3000 no conectado todavía -- registro local generado al confirmar el pago.' })}::jsonb)
+              VALUES (${cooperativaId}, ${compraId}, ${`registro-${compraId}-${cooperativaId}`}, ${JSON.stringify({ nota: 'SIAT3000 no conectado todavía -- registro local generado al confirmar el pago.' })}::jsonb)
               RETURNING id`,
         );
         const registroTasaTerminalId = (registroRows.rows[0] as { id: string }).id;

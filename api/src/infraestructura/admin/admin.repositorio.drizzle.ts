@@ -1021,7 +1021,7 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
         ORDER BY (p.estado = 'aprobado') DESC, p.creado_en DESC
         LIMIT 1
       ) pago ON true
-      LEFT JOIN registros_tasa_terminal rt ON rt.compra_id = c.id
+      LEFT JOIN registros_tasa_terminal rt ON rt.compra_id = c.id AND rt.cooperativa_id = b.cooperativa_id
       LEFT JOIN LATERAL (
         SELECT array_agg(ce_int.estado::text) AS estados
         FROM comprobantes_electronicos ce_int

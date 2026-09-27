@@ -215,7 +215,9 @@ export const registrosTasaTerminal = pgTable(
     actualizadoEn: timestamp('actualizado_en', { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
-    uniqueIndex('uq_registros_tasa_terminal_compra').on(t.compraId),
+    // Uno por compra Y por cooperativa (26-sep-2026): una compra de ida y vuelta
+    // puede tener viajes de cooperativas distintas, y cada una escribe el suyo.
+    uniqueIndex('uq_registros_tasa_terminal_compra_cooperativa').on(t.compraId, t.cooperativaId),
     uniqueIndex('uq_registros_tasa_terminal_idempotencia').on(t.claveIdempotencia),
     index('idx_registros_tasa_terminal_cooperativa').on(t.cooperativaId),
     index('idx_registros_tasa_terminal_estado').on(t.estado),
