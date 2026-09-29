@@ -1414,7 +1414,7 @@ export class CheckoutService {
       const { ruc } = await this.compras.obtenerDatosFiscalesPlataforma();
       const resultadoFactura = await this.facturacion.emitirComprobante({
         montoTotal: montoCargoPlataforma,
-        descripcion: 'Cargo por servicio de plataforma Columbus',
+        descripcion: 'Cargo por servicio de plataforma Klumbus',
       });
       await this.compras.crearComprobantePlataforma(
         compraId,

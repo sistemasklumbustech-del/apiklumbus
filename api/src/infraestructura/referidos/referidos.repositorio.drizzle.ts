@@ -111,7 +111,7 @@ export class ReferidosRepositorioDrizzle implements ReferidosRepositorio {
     if (filaExistente.rows.length === 0) {
       const creada = await this.db.execute(sql`
         INSERT INTO configuracion_plataforma (ruc_plataforma, razon_social_plataforma, referido_credito_referidor_default, referido_descuento_referido_default)
-        VALUES ('9999999999001', 'Columbus (pendiente RUC real)', ${datos.creditoReferidor}, ${datos.descuentoReferido})
+        VALUES ('9999999999001', 'Klumbus (pendiente RUC real)', ${datos.creditoReferidor}, ${datos.descuentoReferido})
         RETURNING id
       `);
       configuracionId = (creada.rows[0] as { id: string }).id;

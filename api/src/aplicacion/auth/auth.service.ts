@@ -632,7 +632,7 @@ export class AuthService {
     const secretoCifrado = this.cifradorTotp.cifrar(secreto);
     await this.usuarios.guardarSecretoTotpPendiente(usuario.id, secretoCifrado);
 
-    const otpauthUrl = generarUriTotp({ issuer: 'Columbus', label: usuario.correo, secreto });
+    const otpauthUrl = generarUriTotp({ issuer: 'Klumbus', label: usuario.correo, secreto });
     const qrDataUrl = await QRCode.toDataURL(otpauthUrl);
 
     return { secreto, qrDataUrl };

@@ -110,7 +110,7 @@ export class WalletRepositorioDrizzle implements WalletRepositorio {
     if (filaExistente.rows.length === 0) {
       const creada = await this.db.execute(sql`
         INSERT INTO configuracion_plataforma (ruc_plataforma, razon_social_plataforma, cashback_porcentaje_default)
-        VALUES ('9999999999001', 'Columbus (pendiente RUC real)', ${porcentaje})
+        VALUES ('9999999999001', 'Klumbus (pendiente RUC real)', ${porcentaje})
         RETURNING id
       `);
       configuracionId = (creada.rows[0] as { id: string }).id;
