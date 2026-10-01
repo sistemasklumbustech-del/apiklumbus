@@ -48,7 +48,7 @@ const mapear = (f: Fila): CuentaCobro => ({
 });
 
 const SELECCION = sql`
-  SELECT c.id, c.cooperativa_id, co.nombre AS cooperativa_nombre, c.entidad_financiera,
+  SELECT c.id, c.cooperativa_id, co.nombre_comercial AS cooperativa_nombre, c.entidad_financiera,
          c.tipo_cuenta, c.numero_cuenta, c.titular_nombre, c.titular_tipo_identificacion,
          c.titular_identificacion, c.correo_notificacion, c.estado, c.motivo_rechazo,
          c.verificada_en, c.creado_en
@@ -111,7 +111,7 @@ export class CuentasCobroRepositorioDrizzle implements CuentasCobroRepositorio {
     if (texto) {
       const patron = `%${texto}%`;
       condiciones.push(
-        sql`(co.nombre ILIKE ${patron} OR c.titular_nombre ILIKE ${patron} OR c.titular_identificacion ILIKE ${patron} OR c.correo_notificacion ILIKE ${patron})`,
+        sql`(co.nombre_comercial ILIKE ${patron} OR c.titular_nombre ILIKE ${patron} OR c.titular_identificacion ILIKE ${patron} OR c.correo_notificacion ILIKE ${patron})`,
       );
     }
     const donde = sql.join(condiciones, sql` AND `);
