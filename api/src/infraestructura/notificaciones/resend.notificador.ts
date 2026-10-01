@@ -305,13 +305,15 @@ export class ResendNotificador implements NotificadorEmail {
       tipo: string;
       mensaje: string;
       codigoReferencia?: string;
+      dirigidoACooperativa?: string;
+      respaldoPlataforma?: boolean;
     },
   ): Promise<void> {
     await this.enviar({
       from: REMITENTE,
       to: destino,
       replyTo: c.correo,
-      subject: `[Ayuda ${c.referencia}] ${c.tipo} — ${c.nombre}`,
+      subject: `[Ayuda ${c.referencia}]${c.dirigidoACooperativa ? ` Para ${c.dirigidoACooperativa}` : ''} ${c.tipo} — ${c.nombre}`,
       html: plantillaBase(
         'Nueva consulta de ayuda',
         `
@@ -321,7 +323,9 @@ export class ResendNotificador implements NotificadorEmail {
             <tr><td style="padding:6px 0; color:#6b7280;">Correo</td><td style="padding:6px 0; text-align:right;">${escaparHtml(c.correo)}</td></tr>
             <tr><td style="padding:6px 0; color:#6b7280;">Tema</td><td style="padding:6px 0; text-align:right;">${escaparHtml(c.tipo)}</td></tr>
             ${c.codigoReferencia ? `<tr><td style="padding:6px 0; color:#6b7280;">Compra o boleto</td><td style="padding:6px 0; text-align:right;">${escaparHtml(c.codigoReferencia)}</td></tr>` : ''}
+            ${c.dirigidoACooperativa ? `<tr><td style="padding:6px 0; color:#6b7280;">Dirigido a</td><td style="padding:6px 0; text-align:right;">${escaparHtml(c.dirigidoACooperativa)}</td></tr>` : ''}
           </table>
+          ${c.respaldoPlataforma ? `<p style="font-size: 13px; background:#fef3c7; color:#92400e; padding:10px 12px; border-radius:8px;">${escaparHtml(c.dirigidoACooperativa ?? 'Esta cooperativa')} todavía no configuró un correo de contacto -- por favor reenvíale este mensaje directamente.</p>` : ''}
           <p style="font-size: 14px; line-height: 1.6; background:#f3f4f6; padding:12px; border-radius:8px; white-space:pre-wrap;">${escaparHtml(c.mensaje)}</p>
           <p style="font-size: 12px; color: #6b7280;">Responde a este correo para contestarle directamente a ${escaparHtml(c.nombre)}.</p>
         `,

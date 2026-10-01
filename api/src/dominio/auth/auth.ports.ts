@@ -325,6 +325,10 @@ export interface NotificadorEmail {
       tipo: string;
       mensaje: string;
       codigoReferencia?: string;
+      /** Nombre de la cooperativa a la que va dirigida, si aplica. */
+      dirigidoACooperativa?: string;
+      /** true si iba para una cooperativa pero cayó de respaldo en soporte de la plataforma (la cooperativa no tiene correo de contacto configurado). */
+      respaldoPlataforma?: boolean;
     },
   ): Promise<void>;
 }

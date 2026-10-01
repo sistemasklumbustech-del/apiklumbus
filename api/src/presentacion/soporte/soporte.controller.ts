@@ -5,6 +5,7 @@ import {
   IsIn,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -46,6 +47,11 @@ export class EnviarConsultaAyudaDto {
   @MaxLength(60)
   codigoReferencia?: string;
 
+  /** Si el usuario eligió dirigir la consulta a una cooperativa en particular (26-sep-2026). */
+  @IsOptional()
+  @IsUUID()
+  cooperativaId?: string;
+
   /** Campo trampa: las personas no lo ven ni lo llenan; los robots sí. */
   @IsOptional()
   @IsString()
@@ -76,6 +82,7 @@ export class SoporteController {
       tema: dto.tema,
       mensaje: dto.mensaje,
       codigoReferencia: dto.codigoReferencia || undefined,
+      cooperativaId: dto.cooperativaId,
     });
   }
 }
