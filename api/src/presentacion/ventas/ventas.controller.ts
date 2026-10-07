@@ -52,6 +52,7 @@ export class VentasController {
       dto.aceptoTerminos,
       req.ip,
       dto.metodoPagoEnLinea,
+      dto.datosFacturacion,
     );
   }
 

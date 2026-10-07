@@ -1,8 +1,10 @@
 import {
   IsArray,
+  IsEmail,
   IsIn,
   IsOptional,
   IsString,
+  MaxLength,
   IsUUID,
   IsInt,
   IsBoolean,
@@ -35,7 +37,11 @@ function capitalizarNombre(valor: unknown): unknown {
     .map((palabra) => palabra.charAt(0).toUpperCase() + palabra.slice(1).toLowerCase())
     .join(' ');
 }
-import { esDocumentoValido } from '../../../dominio/ventas/validadores-documento';
+import {
+  esDocumentoValido,
+  esIdentificacionFacturacionValida,
+  type TipoIdentificacionFacturacion,
+} from '../../../dominio/ventas/validadores-documento';
 
 /**
  * Item 31.1, Fase 7 (13-ago-2026) -- el numero de documento se valida
@@ -58,6 +64,65 @@ class EsDocumentoValidoSegunTipoConstraint implements ValidatorConstraintInterfa
       ? 'El numero de cedula no es valido (verifica los digitos).'
       : 'El numero de pasaporte no tiene un formato valido.';
   }
+}
+
+/** Misma idea que EsDocumentoValidoSegunTipo, para los datos de facturación (incluye RUC). */
+@ValidatorConstraint({ name: 'esIdentificacionFacturacionValida', async: false })
+class EsIdentificacionFacturacionValidaConstraint implements ValidatorConstraintInterface {
+  validate(identificacion: string, args: ValidationArguments): boolean {
+    const objeto = args.object as { tipoIdentificacion?: TipoIdentificacionFacturacion };
+    if (!objeto.tipoIdentificacion) return false;
+    return esIdentificacionFacturacionValida(identificacion, objeto.tipoIdentificacion);
+  }
+
+  defaultMessage(args: ValidationArguments): string {
+    const objeto = args.object as { tipoIdentificacion?: TipoIdentificacionFacturacion };
+    if (objeto.tipoIdentificacion === 'ruc') return 'El RUC no es valido (13 digitos).';
+    if (objeto.tipoIdentificacion === 'cedula') {
+      return 'El numero de cedula no es valido (verifica los digitos).';
+    }
+    return 'El numero de pasaporte no tiene un formato valido.';
+  }
+}
+
+/**
+ * Datos con los que se factura el pasaje (06-oct-2026). Opcionales: si el
+ * cliente no los envía, la factura se derivará del primer pasajero cuando
+ * exista la emisión real. Lo que sí se envía se valida completo, porque un
+ * dato incorrecto aquí produce una factura rechazada por el SRI después de
+ * cobrar.
+ */
+export class DatosFacturacionDto {
+  @IsIn(['cedula', 'ruc', 'pasaporte'])
+  tipoIdentificacion!: TipoIdentificacionFacturacion;
+
+  @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Validate(EsIdentificacionFacturacionValidaConstraint)
+  identificacion!: string;
+
+  /** Nombre o razón social tal como debe salir en la factura. */
+  @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : value))
+  @MinLength(3)
+  @MaxLength(300)
+  razonSocial!: string;
+
+  /** Aquí se envían la factura y el QR del terminal. */
+  @IsEmail()
+  @MaxLength(200)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
+  correo!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  direccion?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^09\d{8}$/, { message: 'El telefono debe ser un numero movil ecuatoriano valido (10 digitos, empieza con 09).' })
+  telefono?: string;
 }
 
 /**
@@ -241,4 +306,10 @@ export class CrearCompraDto {
   @IsOptional()
   @IsBoolean()
   aceptoTerminos?: boolean;
+
+  /** Datos para la factura del pasaje (06-oct-2026). Ver DatosFacturacionDto. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DatosFacturacionDto)
+  datosFacturacion?: DatosFacturacionDto;
 }

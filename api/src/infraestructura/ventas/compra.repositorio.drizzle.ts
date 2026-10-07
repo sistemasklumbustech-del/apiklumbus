@@ -38,6 +38,7 @@ import type { DrizzleDb } from '../database/database.provider';
 import { ejecutarComoCooperativa } from '../database/tenant-transaction';
 import type {
   CompraRepositorio,
+  DatosFacturacion,
   PasajeroCheckout,
   DesgloseAsiento,
   MapeoAsientoPasajero,
@@ -330,6 +331,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
     correoContacto?: string,
     vendedorUsuarioId?: string,
     canal: 'en_linea' | 'ventanilla' = 'en_linea',
+    datosFacturacion?: DatosFacturacion,
   ): Promise<{ compraId: string; mapeo: MapeoAsientoPasajero[] }> {
     const montoTarifasCooperativa = desglose.reduce(
       (a, d) => a + d.precioPagado,
@@ -355,6 +357,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
         // Item 31, Fase 7 (11-ago-2026) -- compra como invitado.
         telefonoContacto: telefonoContacto ?? null,
         correoContacto: correoContacto ?? null,
+        datosFacturacion: datosFacturacion ?? null,
         canal,
         vendedorUsuarioId: vendedorUsuarioId ?? null,
         montoTotal: montoTotal.toFixed(2),

@@ -66,6 +66,33 @@ export function esDocumentoValido(documento: string, tipoDocumento: 'cedula' | '
 }
 
 /**
+ * RUC ecuatoriano (13 digitos) para facturar. Deliberadamente mas ligero que
+ * un validador completo: persona natural (tercer digito 0-5) se valida con su
+ * cedula (los primeros 10 digitos); sociedades privadas (9) y publicas (6) solo
+ * por formato, porque hay RUC reales antiguos que no cumplen el Modulo 11 y
+ * rechazarlos dejaria sin factura a clientes legitimos. En todos los casos los
+ * ultimos 3 digitos (establecimiento) no pueden ser 000.
+ */
+export function esRucEcuatorianoValido(ruc: string): boolean {
+  if (!/^\d{13}$/.test(ruc)) return false;
+  if (ruc.endsWith('000')) return false;
+  const tercerDigito = parseInt(ruc[2], 10);
+  if (tercerDigito < 6) return esCedulaEcuatorianaValida(ruc.substring(0, 10));
+  return tercerDigito === 6 || tercerDigito === 9;
+}
+
+export type TipoIdentificacionFacturacion = 'cedula' | 'ruc' | 'pasaporte';
+
+/** Valida la identificacion con la que se factura, segun el tipo declarado. */
+export function esIdentificacionFacturacionValida(
+  identificacion: string,
+  tipo: TipoIdentificacionFacturacion,
+): boolean {
+  if (tipo === 'ruc') return esRucEcuatorianoValido(identificacion);
+  return esDocumentoValido(identificacion, tipo);
+}
+
+/**
  * Telefono movil ecuatoriano -- 10 digitos, siempre empieza con 09
  * (el prefijo de telefonia movil en Ecuador). No se valida telefono
  * fijo aqui a proposito: este campo se usa especificamente para

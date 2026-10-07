@@ -53,6 +53,19 @@ export interface AutorizacionMenor {
   documentoAutorizacionUrl?: string;
 }
 
+/**
+ * Datos con los que se factura el pasaje (06-oct-2026). Se guardan como copia
+ * fija en la compra: una factura autorizada por el SRI no se puede cambiar.
+ */
+export interface DatosFacturacion {
+  tipoIdentificacion: 'cedula' | 'ruc' | 'pasaporte';
+  identificacion: string;
+  razonSocial: string;
+  correo: string;
+  direccion?: string;
+  telefono?: string;
+}
+
 export interface PasajeroCheckout {
   viajeId: string;
   numeroAsiento: string;
@@ -292,6 +305,8 @@ export interface CompraRepositorio {
     /** Venta en ventanilla (17-sep-2026) -- ambos juntos identifican una venta presencial; ninguno se usa en el checkout en línea. */
     vendedorUsuarioId?: string,
     canal?: 'en_linea' | 'ventanilla',
+    /** Datos de facturación (06-oct-2026) -- se guardan como copia fija en la compra. */
+    datosFacturacion?: DatosFacturacion,
   ): Promise<{ compraId: string; mapeo: MapeoAsientoPasajero[] }>;
 
   /**

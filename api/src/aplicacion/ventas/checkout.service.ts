@@ -8,6 +8,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import type {
   CompraRepositorio,
+  DatosFacturacion,
   PasajeroCheckout,
   PasarelaPago,
   MetodoPagoEnLinea,
@@ -140,6 +141,7 @@ export class CheckoutService {
     aceptoTerminos?: boolean,
     direccionIp?: string,
     metodoPagoEnLinea: MetodoPagoEnLinea = 'tarjeta',
+    datosFacturacion?: DatosFacturacion,
   ) {
     if (!usuarioId && !telefonoContacto && !correoContacto) {
       throw new BadRequestException(
@@ -334,6 +336,9 @@ export class CheckoutService {
       undefined,
       telefonoContacto,
       correoContacto,
+      undefined,
+      undefined,
+      datosFacturacion,
     );
 
     if (!usuarioId) {

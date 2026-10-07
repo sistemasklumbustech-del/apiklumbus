@@ -251,6 +251,89 @@ describe('Checkout y pago (e2e)', () => {
     expect(res.body.montoTotal).toBe(PRECIO_BASE); // el IVA NO se suma aparte, ya está adentro
   });
 
+  describe('Datos de facturación del comprador (06-oct-2026)', () => {
+    const pasajeroBase = () => ({
+      viajeId,
+      nombres: 'Pasajero',
+      apellidos: 'Factura Prueba',
+      tipoDocumento: 'cedula',
+      documento: '1701001370',
+      tipoTarifa: 'adulto',
+    });
+
+    it('guarda en la compra una copia fija de los datos de facturación, normalizados', async () => {
+      await bloquearYRegistrarAsiento('4B', tokenPasajero);
+
+      const res = await request(app.getHttpServer())
+        .post('/compras')
+        .set('Authorization', `Bearer ${tokenPasajero}`)
+        .send({
+          pasajeros: [{ ...pasajeroBase(), numeroAsiento: '4B' }],
+          datosFacturacion: {
+            tipoIdentificacion: 'ruc',
+            identificacion: '  0791845968001 ',
+            razonSocial: '  Klumbus   AppTech S.A.S. ',
+            correo: '  Facturas@Klumbustech.com ',
+            direccion: 'Machala, El Oro',
+            telefono: '0984050540',
+          },
+        })
+        .expect(201);
+      expect(res.body.estado).toBe('aprobado');
+
+      const pg = new Client({ connectionString: process.env.DATABASE_URL_PUBLICO });
+      await pg.connect();
+      const fila = await pg.query('SELECT datos_facturacion FROM compras WHERE id = $1', [res.body.compraId]);
+      await pg.end();
+      expect(fila.rows[0].datos_facturacion).toEqual({
+        tipoIdentificacion: 'ruc',
+        identificacion: '0791845968001',
+        razonSocial: 'Klumbus AppTech S.A.S.',
+        correo: 'facturas@klumbustech.com',
+        direccion: 'Machala, El Oro',
+        telefono: '0984050540',
+      });
+    });
+
+    it('la compra sin datos de facturación sigue funcionando y deja el campo vacío', async () => {
+      await bloquearYRegistrarAsiento('4C', tokenPasajero);
+
+      const res = await request(app.getHttpServer())
+        .post('/compras')
+        .set('Authorization', `Bearer ${tokenPasajero}`)
+        .send({ pasajeros: [{ ...pasajeroBase(), numeroAsiento: '4C' }] })
+        .expect(201);
+
+      const pg = new Client({ connectionString: process.env.DATABASE_URL_PUBLICO });
+      await pg.connect();
+      const fila = await pg.query('SELECT datos_facturacion FROM compras WHERE id = $1', [res.body.compraId]);
+      await pg.end();
+      expect(fila.rows[0].datos_facturacion).toBeNull();
+    });
+
+    it.each([
+      ['RUC inválido', { tipoIdentificacion: 'ruc', identificacion: '1710034066001' }],
+      ['cédula inválida', { tipoIdentificacion: 'cedula', identificacion: '1710034066' }],
+      ['correo inválido', { tipoIdentificacion: 'cedula', identificacion: '1710034065', correo: 'sin-arroba' }],
+      ['razón social muy corta', { tipoIdentificacion: 'cedula', identificacion: '1710034065', razonSocial: 'AB' }],
+    ])('rechaza datos de facturación con %s', async (_caso, cambios) => {
+      await request(app.getHttpServer())
+        .post('/compras')
+        .set('Authorization', `Bearer ${tokenPasajero}`)
+        .send({
+          pasajeros: [{ ...pasajeroBase(), numeroAsiento: '4D' }],
+          datosFacturacion: {
+            tipoIdentificacion: 'cedula',
+            identificacion: '1710034065',
+            razonSocial: 'Cliente Prueba',
+            correo: 'cliente@prueba.ec',
+            ...cambios,
+          },
+        })
+        .expect(400);
+    });
+  });
+
   it('aplica el 50% de descuento a un pasajero niño, con autorización de viaje (RN-001, RF-CHECK-002 + RF-MENOR, hallazgo cerrado 22-jul-2026)', async () => {
     await bloquearYRegistrarAsiento('1B', tokenPasajero);
 

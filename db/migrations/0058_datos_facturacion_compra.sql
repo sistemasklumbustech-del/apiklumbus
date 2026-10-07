@@ -1,0 +1,11 @@
+-- Datos de facturación del comprador (06-oct-2026).
+--
+-- La factura del pasaje la emite la cooperativa (o se emite a su nombre) y el
+-- SIAT 3000 pide, para entregar el QR, tipo e identificación del cliente, razón
+-- social y correo. Esos datos se capturan en el checkout y se guardan en la
+-- compra como una copia fija: una factura ya autorizada por el SRI es
+-- inmutable, así que no pueden depender de cambios posteriores en el perfil.
+--
+-- Es opcional por ahora (NULL = el cliente no los indicó). Cuando exista la
+-- emisión real de facturas, se derivan del primer pasajero si faltan.
+ALTER TABLE "compras" ADD COLUMN IF NOT EXISTS "datos_facturacion" jsonb;

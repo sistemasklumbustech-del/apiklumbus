@@ -94,6 +94,11 @@ export const compras = pgTable(
     telefonoContacto: varchar('telefono_contacto', { length: 20 }),
     correoContacto: varchar('correo_contacto', { length: 200 }),
 
+    // 06-oct-2026 -- copia fija de los datos con los que se factura el pasaje
+    // (ver migración 0058). Forma: { tipoIdentificacion, identificacion,
+    // razonSocial, correo, direccion?, telefono? }.
+    datosFacturacion: jsonb('datos_facturacion'),
+
     creadoEn: timestamp('creado_en', { withTimezone: true }).defaultNow().notNull(),
     actualizadoEn: timestamp('actualizado_en', { withTimezone: true }).defaultNow().notNull(),
   },
