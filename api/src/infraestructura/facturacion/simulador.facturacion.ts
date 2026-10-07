@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomInt } from 'node:crypto';
 import type {
   ProveedorFacturacionElectronica,
   DatosParaFacturar,
@@ -38,6 +38,7 @@ export class SimuladorFacturacionElectronica implements ProveedorFacturacionElec
       exitoso: true,
       claveAcceso: claveSimulada,
       numeroAutorizacion: claveSimulada,
+      numeroFactura: String(randomInt(1, 1_000_000_000)).padStart(9, '0'),
     });
   }
 }

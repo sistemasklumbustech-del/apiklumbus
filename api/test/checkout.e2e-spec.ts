@@ -317,20 +317,102 @@ describe('Checkout y pago (e2e)', () => {
       ['correo inválido', { tipoIdentificacion: 'cedula', identificacion: '1710034065', correo: 'sin-arroba' }],
       ['razón social muy corta', { tipoIdentificacion: 'cedula', identificacion: '1710034065', razonSocial: 'AB' }],
     ])('rechaza datos de facturación con %s', async (_caso, cambios) => {
+      const datosValidos = {
+        tipoIdentificacion: 'cedula',
+        identificacion: '1710034065',
+        razonSocial: 'Cliente Prueba',
+        correo: 'cliente@prueba.ec',
+      };
       await request(app.getHttpServer())
         .post('/compras')
         .set('Authorization', `Bearer ${tokenPasajero}`)
         .send({
           pasajeros: [{ ...pasajeroBase(), numeroAsiento: '4D' }],
-          datosFacturacion: {
-            tipoIdentificacion: 'cedula',
-            identificacion: '1710034065',
-            razonSocial: 'Cliente Prueba',
-            correo: 'cliente@prueba.ec',
-            ...cambios,
-          },
+          datosFacturacion: { ...datosValidos, ...cambios },
         })
         .expect(400);
+    });
+  });
+
+  describe('Orquestador posterior al pago (06-oct-2026)', () => {
+    beforeAll(() => {
+      process.env.ORQUESTADOR_POSTPAGO = '1';
+    });
+    afterAll(() => {
+      delete process.env.ORQUESTADOR_POSTPAGO;
+    });
+
+    let compraId: string;
+
+    it('tras cobrar, emite la factura, registra la tasa y deja la compra completada', async () => {
+      await bloquearYRegistrarAsiento('4D', tokenPasajero);
+      const res = await request(app.getHttpServer())
+        .post('/compras')
+        .set('Authorization', `Bearer ${tokenPasajero}`)
+        .send({
+          pasajeros: [
+            {
+              viajeId,
+              numeroAsiento: '4D',
+              nombres: 'Pasajero',
+              apellidos: 'Orquestador Prueba',
+              tipoDocumento: 'cedula',
+              documento: '1701001370',
+              tipoTarifa: 'adulto',
+            },
+          ],
+        })
+        .expect(201);
+      expect(res.body.estado).toBe('aprobado');
+      compraId = res.body.compraId;
+
+      const pg = new Client({ connectionString: process.env.DATABASE_URL_PUBLICO });
+      await pg.connect();
+      const tareas = await pg.query('SELECT tipo, estado, intentos FROM tareas_postpago WHERE compra_id = $1', [compraId]);
+      const compra = await pg.query('SELECT estado FROM compras WHERE id = $1', [compraId]);
+      const transiciones = await pg.query(
+        `SELECT estado_nuevo, actor_sistema FROM compras_transiciones WHERE compra_id = $1 AND actor_sistema = 'postpago' ORDER BY creado_en`,
+        [compraId],
+      );
+      const registro = await pg.query('SELECT estado, codigo_tasa FROM registros_tasa_terminal WHERE compra_id = $1', [compraId]);
+      const facturaCoop = await pg.query(
+        `SELECT ruc_emisor, estado FROM comprobantes_electronicos WHERE compra_id = $1 AND sujeto_tributario = 'cooperativa'`,
+        [compraId],
+      );
+      await pg.end();
+
+      expect(tareas.rows.map((t) => t.tipo)).toEqual(expect.arrayContaining(['factura_pasaje', 'registro_tasa']));
+      expect(tareas.rows.every((t) => t.estado === 'exitosa')).toBe(true);
+      expect(compra.rows[0].estado).toBe('completada');
+      expect(transiciones.rows.map((t) => t.estado_nuevo)).toEqual(['tasa_confirmada', 'completada']);
+      expect(registro.rows[0].estado).toBe('exitosa');
+      expect(registro.rows[0].codigo_tasa).toHaveLength(20);
+      expect(facturaCoop.rows).toHaveLength(1);
+      expect(facturaCoop.rows[0].estado).toBe('autorizado');
+    });
+
+    it('el administrador ve las tareas de la compra, y un pasajero no puede', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/admin/postpago/tareas?compraId=${compraId}`)
+        .set('Authorization', `Bearer ${tokenAdmin}`)
+        .expect(200);
+      expect(res.body.total).toBeGreaterThanOrEqual(2);
+      expect(res.body.filas.every((f: { compraId: string }) => f.compraId === compraId)).toBe(true);
+
+      await request(app.getHttpServer())
+        .get('/admin/postpago/tareas')
+        .set('Authorization', `Bearer ${tokenPasajero}`)
+        .expect(403);
+    });
+
+    it('no se puede reintentar una tarea que no está agotada', async () => {
+      const lista = await request(app.getHttpServer())
+        .get(`/admin/postpago/tareas?compraId=${compraId}`)
+        .set('Authorization', `Bearer ${tokenAdmin}`);
+      await request(app.getHttpServer())
+        .post(`/admin/postpago/tareas/${lista.body.filas[0].id}/reintentar`)
+        .set('Authorization', `Bearer ${tokenAdmin}`)
+        .expect(404);
     });
   });
 

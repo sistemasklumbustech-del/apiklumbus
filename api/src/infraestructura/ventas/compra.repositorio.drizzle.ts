@@ -704,6 +704,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
     pagoId: string,
     cooperativaId: string,
     confirmadoPorUsuarioId: string,
+    detenerEnBoletoConfirmado = false,
   ): Promise<
     | { ok: true; compraId: string; montoCargoPlataforma: number }
     | { ok: false; motivo: string }
@@ -818,12 +819,14 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
     await this.transicionar(pago.compraId, 'boleto_confirmado', {
       actorUsuarioId: confirmadoPorUsuarioId,
     });
-    await this.transicionar(pago.compraId, 'tasa_confirmada', {
-      actorUsuarioId: confirmadoPorUsuarioId,
-    });
-    await this.transicionar(pago.compraId, 'completada', {
-      actorUsuarioId: confirmadoPorUsuarioId,
-    });
+    if (!detenerEnBoletoConfirmado) {
+      await this.transicionar(pago.compraId, 'tasa_confirmada', {
+        actorUsuarioId: confirmadoPorUsuarioId,
+      });
+      await this.transicionar(pago.compraId, 'completada', {
+        actorUsuarioId: confirmadoPorUsuarioId,
+      });
+    }
 
     const montoCargoPlataforma = filasTipadas.reduce(
       (acc, f) => acc + Number(f.cargo_plataforma ?? 0),
@@ -890,6 +893,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
     referenciaExterna: string,
     mapeo: MapeoAsientoPasajero[],
     comprobanteUrl?: string,
+    detenerEnBoletoConfirmado = false,
   ): Promise<{ boletos: BoletoEmitido[] }> {
     // Agrupar por cooperativa: cada grupo se escribe en su propia
     // transacción con SET LOCAL — una compra puede, en teoría, cubrir
@@ -1036,12 +1040,14 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
     await this.transicionar(compraId, 'boleto_confirmado', {
       actorSistema: 'sistema',
     });
-    await this.transicionar(compraId, 'tasa_confirmada', {
-      actorSistema: 'sistema',
-    });
-    await this.transicionar(compraId, 'completada', {
-      actorSistema: 'sistema',
-    });
+    if (!detenerEnBoletoConfirmado) {
+      await this.transicionar(compraId, 'tasa_confirmada', {
+        actorSistema: 'sistema',
+      });
+      await this.transicionar(compraId, 'completada', {
+        actorSistema: 'sistema',
+      });
+    }
 
     return { boletos: boletosEmitidos };
   }

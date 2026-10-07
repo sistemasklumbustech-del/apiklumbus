@@ -31,3 +31,4 @@ export * from './integraciones-terminal';
 export * from './terminos';
 export * from './reclamos';
 export * from './cuentas-cobro';
+export * from './postpago';

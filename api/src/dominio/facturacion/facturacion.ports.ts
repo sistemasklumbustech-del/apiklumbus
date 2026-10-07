@@ -23,12 +23,24 @@ export interface DatosParaFacturar {
   descripcion: string;
   rucOCedulaCliente?: string;
   nombreCliente?: string;
+  /**
+   * 06-oct-2026 -- cuando la factura del pasaje se emite a nombre de una
+   * cooperativa (no de la plataforma), estos datos dicen quién es el emisor
+   * y quién el cliente. El proveedor real debe usar el RUC emisor para
+   * elegir qué firma y qué serie de facturación aplicar.
+   */
+  rucEmisor?: string;
+  tipoIdentificacionCliente?: 'cedula' | 'ruc' | 'pasaporte';
+  correoCliente?: string;
+  direccionCliente?: string;
 }
 
 export interface ResultadoFacturacion {
   exitoso: boolean;
   claveAcceso?: string;
   numeroAutorizacion?: string;
+  /** Secuencial de 9 dígitos de la factura: es el dato que el SIAT 3000 pide para entregar el QR. */
+  numeroFactura?: string;
   xmlUrl?: string;
   pdfUrl?: string;
   error?: string;

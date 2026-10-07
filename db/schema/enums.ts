@@ -171,6 +171,9 @@ export const accionAuditoriaEnum = pgEnum('accion_auditoria', [
   'registro_cuenta_cobro',
   'verificacion_cuenta_cobro',
   'rechazo_cuenta_cobro',
+  // 06-oct-2026 -- tareas posteriores al pago (factura, tasa del terminal): una quedó para revisión manual, o un admin la reintentó.
+  'postpago_tarea_agotada',
+  'postpago_tarea_reintentada',
 ]);
 
 /** RF-COMM-002 — planes comerciales diferenciados. */

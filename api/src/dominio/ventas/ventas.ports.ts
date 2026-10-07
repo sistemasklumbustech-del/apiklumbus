@@ -350,6 +350,8 @@ export interface CompraRepositorio {
     pagoId: string,
     cooperativaId: string,
     confirmadoPorUsuarioId: string,
+    /** Ver `detenerEnBoletoConfirmado` en confirmarPago. */
+    detenerEnBoletoConfirmado?: boolean,
   ): Promise<
     | { ok: true; compraId: string; montoCargoPlataforma: number }
     | { ok: false; motivo: string }
@@ -378,6 +380,13 @@ export interface CompraRepositorio {
      * confirma al instante y nunca pasa por adjuntarComprobante().
      */
     comprobanteUrl?: string,
+    /**
+     * Orquestador posterior al pago (06-oct-2026): si es true, la compra se
+     * queda en 'boleto_confirmado' y es el orquestador quien la avanza a
+     * 'tasa_confirmada' y 'completada' cuando la factura y la tasa están
+     * listas. Por defecto (false) se avanza al instante, como siempre.
+     */
+    detenerEnBoletoConfirmado?: boolean,
   ): Promise<{ boletos: BoletoEmitido[] }>;
 
   /** Registra el rechazo sin tocar los asientos (su hold expira solo). */

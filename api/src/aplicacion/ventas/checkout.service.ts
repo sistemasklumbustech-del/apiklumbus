@@ -33,6 +33,7 @@ import {
   LOGO_BOLETO_PROPORCION,
 } from './logo-boleto';
 import { AuditoriaRegistrador } from '../../infraestructura/auditoria/auditoria.registrador';
+import { PostpagoService } from '../postpago/postpago.service';
 
 export const COMPRA_REPOSITORIO = 'COMPRA_REPOSITORIO';
 export const PASARELA_PAGO = 'PASARELA_PAGO';
@@ -77,6 +78,7 @@ export class CheckoutService {
     private readonly referidos: ReferidosService,
     private readonly terminos: TerminosService,
     private readonly auditoria: AuditoriaRegistrador,
+    private readonly postpago: PostpagoService,
   ) {}
 
   /**
@@ -363,14 +365,23 @@ export class CheckoutService {
       };
     }
 
+    // Con el orquestador activo, la compra queda en 'boleto_confirmado' y las
+    // facturas y la tasa del terminal las hace el orquestador (con reintentos).
+    const conPostpago = PostpagoService.activo();
     const { boletos } = await this.compras.confirmarPago(
       compraId,
       resultadoPago.referenciaExterna,
       mapeo,
+      undefined,
+      conPostpago,
     );
 
-    const cargoPlataformaTotal = desglose.reduce((acc, d) => acc + d.cargoPlataforma, 0);
-    await this.generarFacturaPlataforma(compraId, cargoPlataformaTotal);
+    if (conPostpago) {
+      await this.postpago.programarYProcesar(compraId);
+    } else {
+      const cargoPlataformaTotal = desglose.reduce((acc, d) => acc + d.cargoPlataforma, 0);
+      await this.generarFacturaPlataforma(compraId, cargoPlataformaTotal);
+    }
 
     // El crédito se marca usado DESPUÉS de que el pago se aprueba y el
     // boleto ya existe -- si el pago hubiera fallado, el crédito sigue
@@ -1379,10 +1390,12 @@ export class CheckoutService {
     cooperativaId: string,
     confirmadoPorUsuarioId: string,
   ) {
+    const conPostpago = PostpagoService.activo();
     const resultado = await this.compras.confirmarPagoManual(
       pagoId,
       cooperativaId,
       confirmadoPorUsuarioId,
+      conPostpago,
     );
     if (!resultado.ok) {
       throw new BadRequestException(resultado.motivo);
@@ -1398,7 +1411,11 @@ export class CheckoutService {
     // confirmación del pago si esto tiene algún problema, el boleto ya
     // es real y válido de todas formas; se registra el error para
     // revisión (ver comprobante_electronico.estado='rechazado').
-    await this.generarFacturaPlataforma(resultado.compraId, resultado.montoCargoPlataforma);
+    if (conPostpago) {
+      await this.postpago.programarYProcesar(resultado.compraId);
+    } else {
+      await this.generarFacturaPlataforma(resultado.compraId, resultado.montoCargoPlataforma);
+    }
 
     // Modelo B (02-ago-2026) -- mismo disparo que en procesarCompra,
     // pero acá ya sabemos que es una sola cooperativa (el parámetro).
