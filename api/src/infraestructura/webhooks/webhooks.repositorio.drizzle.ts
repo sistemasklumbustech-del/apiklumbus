@@ -20,16 +20,18 @@ const MAX_INTENTOS = 5;
 export class WebhooksRepositorioDrizzle implements WebhooksRepositorio {
   constructor(@Inject(DRIZZLE_DB_PUBLICO) private readonly db: DrizzleDb) {}
 
-  async obtenerWebhookActivo(cooperativaId: string): Promise<{ webhookUrl: string } | null> {
+  async obtenerWebhookActivo(
+    cooperativaId: string,
+  ): Promise<{ webhookUrl: string; secretoCifrado: string | null } | null> {
     const resultado = await this.db.execute(sql`
-      SELECT webhook_url FROM credenciales_api
+      SELECT webhook_url, webhook_secreto_cifrado FROM credenciales_api
       WHERE cooperativa_id = ${cooperativaId} AND activo = true AND webhook_url IS NOT NULL
       ORDER BY creado_en DESC
       LIMIT 1
     `);
     if (resultado.rows.length === 0) return null;
-    const fila = resultado.rows[0] as { webhook_url: string | null };
-    return fila.webhook_url ? { webhookUrl: fila.webhook_url } : null;
+    const fila = resultado.rows[0] as { webhook_url: string | null; webhook_secreto_cifrado: string | null };
+    return fila.webhook_url ? { webhookUrl: fila.webhook_url, secretoCifrado: fila.webhook_secreto_cifrado } : null;
   }
 
   async crearEventoWebhook(
@@ -70,10 +72,15 @@ export class WebhooksRepositorioDrizzle implements WebhooksRepositorio {
 
   async listarPendientesParaReintentar(maxIntentos: number): Promise<EventoWebhookPendiente[]> {
     const resultado = await this.db.execute(sql`
-      SELECT w.id, w.cooperativa_id, w.payload, w.intentos, c.webhook_url
+      SELECT w.id, w.cooperativa_id, w.payload, w.intentos, c.webhook_url, c.webhook_secreto_cifrado
       FROM webhooks_log w
-      JOIN credenciales_api c
-        ON c.cooperativa_id = w.cooperativa_id AND c.activo = true AND c.webhook_url IS NOT NULL
+      JOIN LATERAL (
+        -- La llave activa más reciente con webhook: la misma que usa el primer envío.
+        -- Antes se unía con todas las llaves activas y un evento se enviaba repetido.
+        SELECT webhook_url, webhook_secreto_cifrado FROM credenciales_api
+        WHERE cooperativa_id = w.cooperativa_id AND activo = true AND webhook_url IS NOT NULL
+        ORDER BY creado_en DESC LIMIT 1
+      ) c ON true
       WHERE w.estado_entrega = 'pendiente' AND w.intentos < ${maxIntentos}
       ORDER BY w.creado_en ASC
       LIMIT 100
@@ -85,11 +92,13 @@ export class WebhooksRepositorioDrizzle implements WebhooksRepositorio {
         payload: unknown;
         intentos: number;
         webhook_url: string;
+        webhook_secreto_cifrado: string | null;
       };
       return {
         id: f.id,
         cooperativaId: f.cooperativa_id,
         webhookUrl: f.webhook_url,
+        secretoCifrado: f.webhook_secreto_cifrado,
         evento: 'venta_creada',
         payload: f.payload,
         intentos: f.intentos,

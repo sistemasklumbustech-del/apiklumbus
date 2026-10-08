@@ -5,6 +5,10 @@ import type { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { Client } from 'pg';
 import { limpiarCooperativasDePrueba } from './helpers/limpieza';
+import { createServer, type IncomingMessage, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { DespachadorWebhooksService } from './../src/aplicacion/webhooks/despachador-webhooks.service';
+import { verificarFirmaWebhook } from './../src/dominio/webhooks/firma-webhook';
 
 /**
  * Paso 4 (último) del plan de blindaje del núcleo. Cubre RF-CHECK y el
@@ -721,6 +725,163 @@ describe('Checkout y pago (e2e)', () => {
       );
       expect(evento.payload.venta.pasajeros.map((p) => p.asientoEtiqueta)).toEqual(['1B']);
       expect(evento.payload.venta.totalAFacturar).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Firma de webhooks (07-oct-2026)', () => {
+    interface Recibido {
+      cabeceras: IncomingMessage['headers'];
+      cuerpo: string;
+    }
+    let receptor: Server;
+    let urlReceptor: string;
+    const recibidos: Recibido[] = [];
+    let llave: string;
+    let credencialId: string;
+    let secreto: string;
+    const auth = () => ({ Authorization: `Bearer ${llave}` });
+
+    async function consultar<T = Record<string, unknown>>(consulta: string, valores: unknown[] = []): Promise<T[]> {
+      const pg = new Client({ connectionString: process.env.DATABASE_URL_PUBLICO });
+      await pg.connect();
+      try {
+        return (await pg.query(consulta, valores)).rows as T[];
+      } finally {
+        await pg.end();
+      }
+    }
+
+    function verificar(r: Recibido, secretoAUsar: string) {
+      return verificarFirmaWebhook(
+        secretoAUsar,
+        {
+          timestamp: r.cabeceras['x-klumbus-timestamp'] as string | undefined,
+          firma: r.cabeceras['x-klumbus-signature'] as string | undefined,
+        },
+        r.cuerpo,
+      );
+    }
+
+    beforeAll(async () => {
+      receptor = createServer((req, res) => {
+        const partes: Buffer[] = [];
+        req.on('data', (p: Buffer) => partes.push(p));
+        req.on('end', () => {
+          recibidos.push({ cabeceras: req.headers, cuerpo: Buffer.concat(partes).toString('utf8') });
+          res.statusCode = 200;
+          res.end('ok');
+        });
+      });
+      await new Promise<void>((resolver) => receptor.listen(0, '127.0.0.1', resolver));
+      urlReceptor = `http://127.0.0.1:${(receptor.address() as AddressInfo).port}/webhook`;
+
+      const credencial = await request(app.getHttpServer())
+        .post('/coop/credenciales-api')
+        .set('Authorization', `Bearer ${tokenCoopRechazo}`)
+        .send({ webhookUrl: urlReceptor })
+        .expect(201);
+      llave = credencial.body.apiKeyCompleta;
+      credencialId = credencial.body.id;
+      secreto = credencial.body.webhookSecreto;
+    });
+
+    afterAll(async () => {
+      await new Promise<void>((resolver) => receptor.close(() => resolver()));
+    });
+
+    it('al crear la llave se entrega el secreto una sola vez y el listado solo dice que la firma está activa', async () => {
+      expect(secreto).toMatch(/^whsec_[0-9a-f]{48}$/);
+      const listado = await request(app.getHttpServer())
+        .get('/coop/credenciales-api')
+        .set('Authorization', `Bearer ${tokenCoopRechazo}`)
+        .expect(200);
+      const fila = listado.body.filas.find((f: { id: string }) => f.id === credencialId);
+      expect(fila.firmaWebhookActiva).toBe(true);
+      expect(JSON.stringify(listado.body)).not.toContain(secreto);
+
+      // En la base queda cifrado, nunca en texto plano.
+      const [guardado] = await consultar<{ webhook_secreto_cifrado: string }>(
+        `SELECT webhook_secreto_cifrado FROM credenciales_api WHERE id = $1`,
+        [credencialId],
+      );
+      expect(guardado.webhook_secreto_cifrado).toBeTruthy();
+      expect(guardado.webhook_secreto_cifrado).not.toContain(secreto);
+    });
+
+    it('el evento de prueba llega firmado y solo se valida con el secreto correcto', async () => {
+      await request(app.getHttpServer()).post('/api-externa/webhooks/prueba').expect(401);
+
+      const antes = recibidos.length;
+      const res = await request(app.getHttpServer()).post('/api-externa/webhooks/prueba').set(auth()).expect(200);
+      expect(res.body).toEqual({ entregado: true, firmado: true, respuesta: 'HTTP 200' });
+
+      const r = recibidos[antes];
+      expect(r.cabeceras['x-klumbus-event-id']).toBeTruthy();
+      expect(r.cabeceras['x-klumbus-signature']).toMatch(/^v1=[0-9a-f]{64}$/);
+      expect(JSON.parse(r.cuerpo).evento).toBe('prueba');
+      expect(verificar(r, secreto)).toBe('valida');
+      expect(verificar(r, 'whsec_otro_secreto')).toBe('firma_invalida');
+    });
+
+    it('al regenerar el secreto, el anterior deja de servir y el nuevo funciona', async () => {
+      const nuevo = await request(app.getHttpServer())
+        .post(`/coop/credenciales-api/${credencialId}/webhook-secreto`)
+        .set('Authorization', `Bearer ${tokenCoopRechazo}`)
+        .expect(201);
+      expect(nuevo.body.webhookSecreto).toMatch(/^whsec_/);
+      expect(nuevo.body.webhookSecreto).not.toBe(secreto);
+
+      const antes = recibidos.length;
+      await request(app.getHttpServer()).post('/api-externa/webhooks/prueba').set(auth()).expect(200);
+      const r = recibidos[antes];
+      expect(verificar(r, nuevo.body.webhookSecreto)).toBe('valida');
+      expect(verificar(r, secreto)).toBe('firma_invalida');
+      secreto = nuevo.body.webhookSecreto;
+    });
+
+    it('un reintento se firma de nuevo con un timestamp vigente', async () => {
+      const [{ cooperativa_id }] = await consultar<{ cooperativa_id: string }>(
+        `SELECT cooperativa_id FROM credenciales_api WHERE id = $1`,
+        [credencialId],
+      );
+      const [{ id: compraId }] = await consultar<{ id: string }>(`SELECT id FROM compras LIMIT 1`);
+      const marca = `reintento-${Date.now()}`;
+      const [{ id: eventoId }] = await consultar<{ id: string }>(
+        `INSERT INTO webhooks_log (cooperativa_id, compra_id, evento, payload, estado_entrega, creado_en)
+         VALUES ($1, $2, 'venta_creada', $3, 'pendiente', now() - interval '1 hour')
+         RETURNING id`,
+        [cooperativa_id, compraId, JSON.stringify({ evento: 'venta_creada', marca })],
+      );
+
+      await app.get(DespachadorWebhooksService).reintentarPendientes();
+
+      const r = recibidos.find((x) => x.cuerpo.includes(marca));
+      expect(r).toBeDefined();
+      expect(r!.cabeceras['x-klumbus-event-id']).toBe(eventoId);
+      expect(verificar(r!, secreto)).toBe('valida');
+      const [log] = await consultar<{ estado_entrega: string; intentos: number }>(
+        `SELECT estado_entrega, intentos FROM webhooks_log WHERE id = $1`,
+        [eventoId],
+      );
+      expect(log).toEqual({ estado_entrega: 'confirmado', intentos: 1 });
+    });
+
+    it('una llave sin secreto (anterior a la firma) sigue enviando, pero sin firma', async () => {
+      await consultar(`UPDATE credenciales_api SET webhook_secreto_cifrado = NULL WHERE id = $1`, [credencialId]);
+      const antes = recibidos.length;
+      const res = await request(app.getHttpServer()).post('/api-externa/webhooks/prueba').set(auth()).expect(200);
+      expect(res.body.firmado).toBe(false);
+      expect(res.body.entregado).toBe(true);
+      expect(recibidos[antes].cabeceras['x-klumbus-signature']).toBeUndefined();
+
+      // Se puede activar la firma después, sin cambiar la llave.
+      const nuevo = await request(app.getHttpServer())
+        .post(`/coop/credenciales-api/${credencialId}/webhook-secreto`)
+        .set('Authorization', `Bearer ${tokenCoopRechazo}`)
+        .expect(201);
+      const despues = recibidos.length;
+      await request(app.getHttpServer()).post('/api-externa/webhooks/prueba').set(auth()).expect(200);
+      expect(verificar(recibidos[despues], nuevo.body.webhookSecreto)).toBe('valida');
     });
   });
 

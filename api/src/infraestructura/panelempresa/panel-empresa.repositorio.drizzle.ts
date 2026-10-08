@@ -10,6 +10,8 @@ import { DRIZZLE_DB } from '../database/database.module';
 import type { DrizzleDb } from '../database/database.provider';
 import { ejecutarComoCooperativa } from '../database/tenant-transaction';
 import { BcryptHasher } from '../auth/bcrypt.hasher';
+import { CifradorTotpAesGcm } from '../auth/cifrador-totp.aes-gcm';
+import { generarSecretoWebhook } from '../../dominio/webhooks/firma-webhook';
 import type {
   PanelEmpresaRepositorio,
   DatosNuevoTipoVehiculo,
@@ -101,6 +103,7 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
   constructor(
     @Inject(DRIZZLE_DB) private readonly db: DrizzleDb,
     private readonly hasher: BcryptHasher,
+    private readonly cifrador: CifradorTotpAesGcm,
   ) {}
 
   async crearTipoVehiculo(
@@ -1861,7 +1864,8 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
 
       const offset = (filtros.pagina - 1) * filtros.limite;
       const resultado = await tx.execute(sql`
-        SELECT id, tipo, api_key_prefix, webhook_url, activo, creado_en, revocado_en
+        SELECT id, tipo, api_key_prefix, webhook_url, (webhook_secreto_cifrado IS NOT NULL) AS firma_activa,
+               activo, creado_en, revocado_en
         FROM credenciales_api
         WHERE ${donde}
         ORDER BY activo DESC, creado_en DESC
@@ -1873,6 +1877,7 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
           tipo: string;
           api_key_prefix: string | null;
           webhook_url: string | null;
+          firma_activa: boolean;
           activo: boolean;
           creado_en: string;
           revocado_en: string | null;
@@ -1882,6 +1887,7 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
           tipo: f.tipo as 'api_key',
           apiKeyPrefix: f.api_key_prefix ?? '',
           webhookUrl: f.webhook_url,
+          firmaWebhookActiva: f.firma_activa,
           activo: f.activo,
           creadoEn: f.creado_en,
           revocadoEn: f.revocado_en,
@@ -1896,16 +1902,19 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
     webhookUrl: string | null,
   ): Promise<CredencialApiRecienCreada> {
     const { apiKeyPrefix, apiKeyHash, apiKeyCompleta } = await this.generarCredencialApi();
+    const webhookSecreto = generarSecretoWebhook();
+    const webhookSecretoCifrado = this.cifrador.cifrar(webhookSecreto);
     return ejecutarComoCooperativa(this.db, cooperativaId, async (tx) => {
       const resultado = await tx.execute(sql`
-        INSERT INTO credenciales_api (cooperativa_id, tipo, api_key_prefix, api_key_hash, webhook_url, activo)
-        VALUES (${cooperativaId}, 'api_key', ${apiKeyPrefix}, ${apiKeyHash}, ${webhookUrl}, true)
+        INSERT INTO credenciales_api (cooperativa_id, tipo, api_key_prefix, api_key_hash, webhook_url, webhook_secreto_cifrado, activo)
+        VALUES (${cooperativaId}, 'api_key', ${apiKeyPrefix}, ${apiKeyHash}, ${webhookUrl}, ${webhookSecretoCifrado}, true)
         RETURNING id
       `);
       return {
         id: (resultado.rows[0] as { id: string }).id,
         apiKeyPrefix,
         apiKeyCompleta,
+        webhookSecreto,
       };
     });
   }
@@ -1935,16 +1944,40 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
       `);
 
       const { apiKeyPrefix, apiKeyHash, apiKeyCompleta } = await this.generarCredencialApi();
+      // La llave nueva trae también un secreto de firma nuevo: al rotar se
+      // cambia todo el juego de credenciales de una vez.
+      const webhookSecreto = generarSecretoWebhook();
+      const webhookSecretoCifrado = this.cifrador.cifrar(webhookSecreto);
       const nueva = await tx.execute(sql`
-        INSERT INTO credenciales_api (cooperativa_id, tipo, api_key_prefix, api_key_hash, webhook_url, activo)
-        VALUES (${cooperativaId}, 'api_key', ${apiKeyPrefix}, ${apiKeyHash}, ${webhookUrl}, true)
+        INSERT INTO credenciales_api (cooperativa_id, tipo, api_key_prefix, api_key_hash, webhook_url, webhook_secreto_cifrado, activo)
+        VALUES (${cooperativaId}, 'api_key', ${apiKeyPrefix}, ${apiKeyHash}, ${webhookUrl}, ${webhookSecretoCifrado}, true)
         RETURNING id
       `);
       return {
         id: (nueva.rows[0] as { id: string }).id,
         apiKeyPrefix,
         apiKeyCompleta,
+        webhookSecreto,
       };
+    });
+  }
+
+  async regenerarWebhookSecreto(
+    cooperativaId: string,
+    credencialId: string,
+  ): Promise<{ webhookSecreto: string }> {
+    const webhookSecreto = generarSecretoWebhook();
+    const webhookSecretoCifrado = this.cifrador.cifrar(webhookSecreto);
+    return ejecutarComoCooperativa(this.db, cooperativaId, async (tx) => {
+      const resultado = await tx.execute(sql`
+        UPDATE credenciales_api SET webhook_secreto_cifrado = ${webhookSecretoCifrado}
+        WHERE id = ${credencialId} AND cooperativa_id = ${cooperativaId} AND activo = true
+        RETURNING id
+      `);
+      if (resultado.rows.length === 0) {
+        throw new BadRequestException('No existe una credencial activa con ese id.');
+      }
+      return { webhookSecreto };
     });
   }
 

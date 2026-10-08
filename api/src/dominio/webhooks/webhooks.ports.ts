@@ -9,6 +9,8 @@ export interface EventoWebhookPendiente {
   id: string;
   cooperativaId: string;
   webhookUrl: string;
+  /** Secreto de firma cifrado; null si la llave es anterior a la firma de webhooks. */
+  secretoCifrado: string | null;
   evento: string;
   payload: unknown;
   intentos: number;
@@ -16,7 +18,9 @@ export interface EventoWebhookPendiente {
 
 export interface WebhooksRepositorio {
   /** null si la cooperativa no tiene credencial activa con webhook configurado -- no es un error, Modelo B es opcional. */
-  obtenerWebhookActivo(cooperativaId: string): Promise<{ webhookUrl: string } | null>;
+  obtenerWebhookActivo(
+    cooperativaId: string,
+  ): Promise<{ webhookUrl: string; secretoCifrado: string | null } | null>;
 
   crearEventoWebhook(
     cooperativaId: string,

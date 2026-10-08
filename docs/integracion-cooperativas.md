@@ -108,6 +108,81 @@ Klumbus reintenta cada 5 minutos, hasta 5 intentos.
 Para verificar qué se entregó, consulte `GET /api-externa/webhooks`
 (parámetros opcionales `desde` y `hasta`).
 
+### Firma del webhook
+
+Cada envío lleva tres cabeceras para que su sistema compruebe que lo mandó
+Klumbus y que nadie lo alteró:
+
+| Cabecera | Contenido |
+|---|---|
+| `X-Klumbus-Event-Id` | Identificador del evento. Es el mismo en los reintentos |
+| `X-Klumbus-Timestamp` | Segundos desde 1970 al momento de enviar. Cambia en cada reintento |
+| `X-Klumbus-Signature` | `v1=` seguido del HMAC-SHA256 en hexadecimal |
+
+La firma se calcula con el **secreto del webhook** (`whsec_…`) sobre el texto
+`{timestamp}.{cuerpo}`, donde `cuerpo` es el JSON **tal como lo recibió**, sin
+volver a formatearlo.
+
+Para verificarlo:
+
+1. Lea el cuerpo crudo de la petición, antes de convertirlo a objeto.
+2. Calcule `HMAC-SHA256(secreto, timestamp + "." + cuerpo)` en hexadecimal y
+   anteponga `v1=`.
+3. Compárelo con `X-Klumbus-Signature` en tiempo constante.
+4. Rechace el envío si `X-Klumbus-Timestamp` se aleja más de **5 minutos** de su
+   hora actual. Esto evita que alguien reutilice un envío viejo.
+
+```js
+// Node.js
+const crypto = require('node:crypto');
+
+function esValido(secreto, cabeceras, cuerpoCrudo) {
+  const ts = cabeceras['x-klumbus-timestamp'];
+  const firma = cabeceras['x-klumbus-signature'];
+  if (!ts || !firma) return false;
+  if (Math.abs(Date.now() / 1000 - Number(ts)) > 300) return false;
+  const esperada = 'v1=' + crypto.createHmac('sha256', secreto).update(`${ts}.${cuerpoCrudo}`).digest('hex');
+  const a = Buffer.from(esperada);
+  const b = Buffer.from(firma);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+```
+
+```python
+# Python
+import hashlib, hmac, time
+
+def es_valido(secreto: str, cabeceras: dict, cuerpo_crudo: bytes) -> bool:
+    ts = cabeceras.get("X-Klumbus-Timestamp")
+    firma = cabeceras.get("X-Klumbus-Signature")
+    if not ts or not firma or abs(time.time() - int(ts)) > 300:
+        return False
+    esperada = "v1=" + hmac.new(secreto.encode(), ts.encode() + b"." + cuerpo_crudo, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(esperada, firma)
+```
+
+Para comprobar su implementación: con secreto `whsec_ejemplo`, timestamp
+`1790000000` y cuerpo `{"a":1}`, la firma debe ser
+`v1=74065b7f65fa8594a7c5e3ccf619764d0c71b6f160376a89d8390bd144a637a0`.
+
+**El secreto.** Se muestra una sola vez, al crear o rotar la llave en el panel
+(Credenciales API). Si lo pierde, genere uno nuevo desde el panel
+(`POST /coop/credenciales-api/{id}/webhook-secreto`): el anterior deja de servir
+en el momento. Rotar la llave también entrega un secreto nuevo. Las llaves
+creadas antes de esta función no tienen secreto y sus webhooks llegan **sin
+firma** hasta que genere uno.
+
+### Probar el webhook
+
+```
+POST /api-externa/webhooks/prueba
+```
+
+Envía a su URL un evento `{"evento":"prueba", …}` con las mismas cabeceras y
+firma que uno real. No corresponde a ninguna venta y no se reintenta. Responde
+`{ "entregado": true, "firmado": true, "respuesta": "HTTP 200" }`; `400` si su
+cooperativa no tiene una llave activa con URL de webhook.
+
 ## Confirmar una venta
 
 ```
@@ -254,9 +329,6 @@ Se aceptan hasta 60 asientos por solicitud.
 
 ## Lo que todavía no incluye
 
-- **Firma del webhook.** Hoy el webhook no lleva firma, así que su sistema no
-  puede comprobar que lo envía Klumbus. Está pendiente. Mientras tanto,
-  verifique el `compraId` consultando la confirmación.
 - **Pago a cargo de la cooperativa.** En este modo Klumbus cobra y liquida.
 - **Cancelar un viaje por API.** Se hace desde el panel de la cooperativa.
 - **Ambiente de pruebas separado.** Las pruebas se coordinan con el equipo de

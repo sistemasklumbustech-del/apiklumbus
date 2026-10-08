@@ -55,6 +55,10 @@ export const credencialesApi = pgTable(
     // hay a dónde enviar el aviso de venta.
     webhookUrl: text('webhook_url'),
 
+    // 07-oct-2026 -- secreto con el que se firman los webhooks (migración 0063). Cifrado,
+    // porque Klumbus necesita leerlo para firmar. NULL = webhooks sin firma.
+    webhookSecretoCifrado: text('webhook_secreto_cifrado'),
+
     activo: boolean('activo').default(true).notNull(),
     creadoEn: timestamp('creado_en', { withTimezone: true }).defaultNow().notNull(),
     revocadoEn: timestamp('revocado_en', { withTimezone: true }),

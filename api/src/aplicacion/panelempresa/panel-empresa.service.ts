@@ -490,6 +490,10 @@ export class PanelEmpresaService {
     return this.panel.rotarCredencialApi(cooperativaId, credencialId);
   }
 
+  regenerarWebhookSecreto(cooperativaId: string, credencialId: string) {
+    return this.panel.regenerarWebhookSecreto(cooperativaId, credencialId);
+  }
+
   revocarCredencialApi(cooperativaId: string, credencialId: string) {
     return this.panel.revocarCredencialApi(cooperativaId, credencialId);
   }

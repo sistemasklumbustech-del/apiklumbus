@@ -18,6 +18,7 @@ import {
 import { IsNumber, Max, Min } from 'class-validator';
 import { ApiExternaService } from '../../aplicacion/api-externa/api-externa.service';
 import { PostpagoService } from '../../aplicacion/postpago/postpago.service';
+import { DespachadorWebhooksService } from '../../aplicacion/webhooks/despachador-webhooks.service';
 import { ApiKeyGuard } from './guards/api-key.guard';
 import {
   ActualizarPrecioViajeDto,
@@ -57,6 +58,7 @@ export class ApiExternaController {
   constructor(
     private readonly service: ApiExternaService,
     private readonly postpago: PostpagoService,
+    private readonly despachador: DespachadorWebhooksService,
   ) {}
 
   /**
@@ -218,5 +220,20 @@ export class ApiExternaController {
     @Request() req: PeticionConCooperativa,
   ) {
     return this.service.listarEventosWebhook(req.cooperativaId, desde, hasta);
+  }
+
+  /**
+   * Envía un evento `prueba` firmado a la URL del webhook de la cooperativa,
+   * para que su equipo compruebe la URL y su verificación de firma sin
+   * esperar una venta real. No se guarda ni se reintenta.
+   */
+  @Post('webhooks/prueba')
+  @HttpCode(200)
+  async enviarWebhookPrueba(@Request() req: PeticionConCooperativa) {
+    const resultado = await this.despachador.dispararEventoPrueba(req.cooperativaId);
+    if (!resultado) {
+      throw new BadRequestException('Tu cooperativa no tiene una llave activa con URL de webhook configurada.');
+    }
+    return resultado;
   }
 }

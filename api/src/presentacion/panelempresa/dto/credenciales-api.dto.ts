@@ -32,7 +32,9 @@ export class ActualizarWebhookCredencialApiDto {
 /** Paginación real (23-sep-2026) -- GET /coop/credenciales-api. */
 export class ConsultarCredencialesApiDto {
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  // Si el parámetro no viene se deja sin filtrar: antes un `activo` omitido se
+  // convertía en `false` y el listado solo mostraba las llaves revocadas.
+  @Transform(({ value }) => (value === undefined ? undefined : value === 'true' || value === true))
   @IsBoolean()
   activo?: boolean;
 

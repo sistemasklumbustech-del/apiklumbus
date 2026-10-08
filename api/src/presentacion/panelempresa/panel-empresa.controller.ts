@@ -795,6 +795,16 @@ export class PanelEmpresaController {
     return this.panel.rotarCredencialApi(cooperativaDelToken(req.user), id);
   }
 
+  /** Genera un secreto de firma de webhooks nuevo (el anterior deja de servir) y lo muestra una sola vez. */
+  @Roles('admin_cooperativa')
+  @Post('credenciales-api/:id/webhook-secreto')
+  async regenerarWebhookSecreto(
+    @Param('id') id: string,
+    @Request() req: { user: PayloadToken },
+  ) {
+    return this.panel.regenerarWebhookSecreto(cooperativaDelToken(req.user), id);
+  }
+
   @Roles('admin_cooperativa')
   @Delete('credenciales-api/:id')
   async revocarCredencialApi(

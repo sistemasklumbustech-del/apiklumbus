@@ -11,6 +11,7 @@ import {
 } from '../../aplicacion/panelempresa/panel-empresa.service';
 import { PanelEmpresaRepositorioDrizzle } from '../../infraestructura/panelempresa/panel-empresa.repositorio.drizzle';
 import { BcryptHasher } from '../../infraestructura/auth/bcrypt.hasher';
+import { CifradorTotpAesGcm } from '../../infraestructura/auth/cifrador-totp.aes-gcm';
 import { AuthModule } from '../auth/auth.module';
 import { VentasModule } from '../ventas/ventas.module';
 import { LiquidacionesModule } from '../liquidaciones/liquidaciones.module';
@@ -40,6 +41,7 @@ import { ReferidosModule } from '../referidos/referidos.module';
     CargaMasivaCatalogo,
     PerfilPublicoRepositorio,
     BcryptHasher,
+    CifradorTotpAesGcm,
     {
       provide: PANEL_EMPRESA_REPOSITORIO,
       useClass: PanelEmpresaRepositorioDrizzle,

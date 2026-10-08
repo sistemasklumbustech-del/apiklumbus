@@ -57,6 +57,8 @@ export interface CredencialApiCooperativa {
   tipo: 'api_key';
   apiKeyPrefix: string;
   webhookUrl: string | null;
+  /** true si los webhooks de esta llave van firmados (tiene secreto). Las llaves anteriores a la firma no. */
+  firmaWebhookActiva: boolean;
   activo: boolean;
   creadoEn: string;
   revocadoEn: string | null;
@@ -81,6 +83,8 @@ export interface CredencialApiRecienCreada {
   apiKeyPrefix: string;
   /** Llave completa en texto plano -- se muestra UNA sola vez, nunca se vuelve a guardar así. */
   apiKeyCompleta: string;
+  /** Secreto para verificar la firma de los webhooks -- también se muestra UNA sola vez. */
+  webhookSecreto: string;
 }
 
 /**
@@ -1104,6 +1108,15 @@ export interface PanelEmpresaRepositorio {
     credencialId: string,
   ): Promise<CredencialApiRecienCreada>;
   revocarCredencialApi(cooperativaId: string, credencialId: string): Promise<void>;
+  /**
+   * Genera un secreto de firma nuevo para una llave activa (las llaves
+   * anteriores a la firma no tenían). Reemplaza al anterior en el acto.
+   * Devuelve el secreto en texto plano UNA sola vez.
+   */
+  regenerarWebhookSecreto(
+    cooperativaId: string,
+    credencialId: string,
+  ): Promise<{ webhookSecreto: string }>;
   actualizarWebhookCredencialApi(
     cooperativaId: string,
     credencialId: string,

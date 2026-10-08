@@ -1,0 +1,14 @@
+-- Firma de los webhooks (07-oct-2026).
+--
+-- Cada llave API tiene su propio secreto de firma, distinto de la llave. Con él
+-- Klumbus firma cada webhook (HMAC-SHA256) y la cooperativa comprueba que de
+-- verdad lo envió Klumbus y que nadie lo modificó.
+--
+-- A diferencia de la llave (que solo se verifica, y por eso se guarda con hash),
+-- Klumbus necesita leer este secreto para firmar, así que se guarda cifrado
+-- (AES-256-GCM), nunca en texto plano. La cooperativa lo ve una sola vez al
+-- crear o rotar la llave.
+--
+-- NULL en las llaves anteriores a esta migración: sus webhooks se siguen
+-- enviando sin firma hasta que la cooperativa genere su secreto.
+ALTER TABLE "credenciales_api" ADD COLUMN "webhook_secreto_cifrado" text;
