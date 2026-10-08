@@ -12,6 +12,8 @@ import {
   cooperativas,
   pasajerosCompra,
 } from '@columbus/db';
+import { resolverEstadoTasa, tasaDeBoleto } from '../ventas/tasa-boleto.sql';
+import type { EstadoTasaBoleto } from '../../dominio/ventas/ventas.ports';
 import { DRIZZLE_DB_PUBLICO } from '../database/database.module';
 import type { DrizzleDb } from '../database/database.provider';
 import type {
@@ -180,6 +182,8 @@ export class CalificacionesRepositorioDrizzle implements CalificacionesRepositor
       horaLlegadaEstimada: Date | null;
       yaCalificado: boolean;
       estado: string;
+      codigoTasa: string | null;
+      estadoTasa: EstadoTasaBoleto;
     }[];
   }> {
     const puntosOrigen = alias(puntosOperacion, 'puntos_origen');
@@ -231,6 +235,7 @@ export class CalificacionesRepositorioDrizzle implements CalificacionesRepositor
         horaSalidaProgramada: viajes.horaSalidaProgramada,
         horaLlegadaEstimada: viajes.horaLlegadaEstimada,
         calificacionId: calificaciones.id,
+        ...tasaDeBoleto(boletos.compraId, boletos.cooperativaId),
       })
       .from(boletos)
       .innerJoin(compras, eq(boletos.compraId, compras.id))
@@ -265,6 +270,8 @@ export class CalificacionesRepositorioDrizzle implements CalificacionesRepositor
         horaSalidaProgramada: f.horaSalidaProgramada,
         horaLlegadaEstimada: f.horaLlegadaEstimada,
         yaCalificado: f.calificacionId !== null,
+        codigoTasa: f.codigoTasa,
+        estadoTasa: resolverEstadoTasa(f.codigoTasa, f.estadosTareasTasa),
       })),
     };
   }

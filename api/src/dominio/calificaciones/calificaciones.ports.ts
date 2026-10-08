@@ -3,6 +3,8 @@
  * completo en packages/db/schema/calificaciones.ts sobre por qué se
  * califica el viaje/cooperativa y no la plataforma en general.
  */
+import type { EstadoTasaBoleto } from '../ventas/ventas.ports';
+
 /** Filtros y paginación de "Mis boletos" (24-sep-2026). Fechas YYYY-MM-DD sobre la fecha de salida. */
 export interface FiltrosMisBoletos {
   estado?: 'vigente' | 'usado' | 'cancelado';
@@ -90,6 +92,9 @@ export interface CalificacionesRepositorio {
       horaSalidaProgramada: Date;
       horaLlegadaEstimada: Date | null;
       yaCalificado: boolean;
+      /** Código de tasa del terminal (20 dígitos, QR del torniquete) y en qué va. */
+      codigoTasa: string | null;
+      estadoTasa: EstadoTasaBoleto;
     }[];
   }>;
 }

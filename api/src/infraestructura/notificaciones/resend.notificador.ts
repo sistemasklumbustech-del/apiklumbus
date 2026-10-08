@@ -159,6 +159,63 @@ export class ResendNotificador implements NotificadorEmail {
     });
   }
 
+  async enviarCodigoAnden(
+    correo: string,
+    detalle: { compraId: string; tieneCuenta?: boolean; boletos: BoletoCorreo[] },
+    adjuntos?: AdjuntoCorreo[],
+  ): Promise<void> {
+    const filasBoletos = detalle.boletos
+      .map(
+        (b) => `
+          <tr>
+            <td style="padding:10px 0; border-top:1px solid #e5e7eb;">
+              ${b.tramo ? `<span style="display:inline-block; background:#f5a623; color:#1a1a2e; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; margin-bottom:4px;">${b.tramo === 'ida' ? 'IDA' : 'VUELTA'}</span><br/>` : ''}
+              <strong style="font-size:15px;">${escaparHtml(b.ruta)}</strong><br/>
+              <strong>${escaparHtml(b.fecha)} · ${escaparHtml(b.hora)}</strong><br/>
+              <span style="color:#6b7280;">Asiento ${escaparHtml(b.asiento)} · ${escaparHtml(b.cooperativa)}</span>
+            </td>
+          </tr>`,
+      )
+      .join('');
+    const hayAdjuntos = !!adjuntos && adjuntos.length > 0;
+    await this.enviar({
+      from: REMITENTE,
+      to: correo,
+      subject: 'Tu código de acceso al andén — Klumbus',
+      attachments: hayAdjuntos
+        ? adjuntos.map((a) => ({ filename: a.nombreArchivo, content: a.contenido }))
+        : undefined,
+      html: plantillaBase(
+        'Tu código de acceso al andén ya está listo',
+        `
+          <p style="font-size: 14px; line-height: 1.6;">
+            El terminal ya registró tu pasaje. Tu boleto ahora incluye un segundo código QR,
+            <strong>"Acceso al andén"</strong>, que es el que se lee en el torniquete del terminal.
+          </p>
+          ${
+            filasBoletos
+              ? `<table style="width:100%; font-size:14px; margin: 8px 0 16px; border-collapse: collapse;">${filasBoletos}</table>`
+              : ''
+          }
+          ${
+            hayAdjuntos
+              ? `<p style="font-size: 14px; line-height: 1.6;">Adjuntamos tu boleto actualizado en PDF. Usa esta versión: reemplaza al PDF anterior.</p>`
+              : ''
+          }
+          ${
+            detalle.tieneCuenta === false
+              ? ''
+              : `<p style="margin: 24px 0;">
+            <a href="${URL_FRONTEND}/mis-boletos" style="background:#2451c4; color:#fff; padding:12px 24px; border-radius:8px; text-decoration:none; font-weight:600; font-size:14px; display:inline-block;">
+              Ver mis boletos
+            </a>
+          </p>`
+          }
+        `,
+      ),
+    });
+  }
+
   async enviarConsultaLlegada(
     correo: string,
     detalle: {

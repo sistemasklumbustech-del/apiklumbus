@@ -192,6 +192,28 @@ describe('PostpagoService', () => {
     expect(repo.tasaGuardada).toEqual([{ exitoso: true, codigoTasa: '12345678901234567890' }]);
   });
 
+  it('avisa cuando el código de tasa queda listo, una vez por cooperativa', async () => {
+    const avisos: string[] = [];
+    servicio.alTasaLista((compra, coop) => {
+      avisos.push(`${compra}/${coop}`);
+      return Promise.resolve();
+    });
+    await servicio.programarYProcesar(COMPRA);
+    expect(avisos).toEqual([`${COMPRA}/${COOP}`]);
+  });
+
+  it('un oyente que falla no rompe el procesamiento ni a los demás', async () => {
+    const avisos: string[] = [];
+    servicio.alTasaLista(() => Promise.reject(new Error('correo caído')));
+    servicio.alTasaLista((compra) => {
+      avisos.push(compra);
+      return Promise.resolve();
+    });
+    await servicio.programarYProcesar(COMPRA);
+    expect(avisos).toEqual([COMPRA]);
+    expect(repo.estadoCompra).toBe('completada');
+  });
+
   it('la factura del pasaje cubre pasaje y tasa, y a la tasa le llega el número de esa factura', async () => {
     await servicio.programarYProcesar(COMPRA);
 
@@ -346,11 +368,17 @@ describe('PostpagoService', () => {
       expect(repo.estadoCompra).toBe('completada');
     });
 
-    it('reportar dos veces es inofensivo', async () => {
+    it('reportar dos veces es inofensivo, y el aviso de tasa lista sale una sola vez', async () => {
+      const avisos: string[] = [];
+      servicio.alTasaLista((compra) => {
+        avisos.push(compra);
+        return Promise.resolve();
+      });
       await servicio.programarYProcesar(COMPRA);
       await servicio.confirmarDesdeCooperativa(COMPRA, COOP, reporte);
       expect(await servicio.confirmarDesdeCooperativa(COMPRA, COOP, reporte)).toBe('ok');
       expect(repo.comprobantesCoop).toBe(1);
+      expect(avisos).toEqual([COMPRA]);
     });
 
     it('otra cooperativa, o una compra sin esa tarea, no puede reportar', async () => {

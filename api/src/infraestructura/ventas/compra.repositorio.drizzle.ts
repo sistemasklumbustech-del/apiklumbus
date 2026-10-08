@@ -36,6 +36,7 @@ const puntosOperacionDestino = alias(puntosOperacion, 'po_destino_idem');
 import { DRIZZLE_DB_PUBLICO, DRIZZLE_DB } from '../database/database.module';
 import type { DrizzleDb } from '../database/database.provider';
 import { ejecutarComoCooperativa } from '../database/tenant-transaction';
+import { resolverEstadoTasa, tasaDeBoleto } from './tasa-boleto.sql';
 import type {
   CompraRepositorio,
   DatosFacturacion,
@@ -1523,6 +1524,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
         rutaDestinoCiudad: destino.ciudad,
         fechaSalida: viajes.fechaSalida,
         horaSalidaProgramada: viajes.horaSalidaProgramada,
+        ...tasaDeBoleto(boletos.compraId, boletos.cooperativaId),
       })
       .from(boletos)
       .innerJoin(pasajerosCompra, eq(boletos.pasajeroCompraId, pasajerosCompra.id))
@@ -1570,6 +1572,8 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
         rutaDestinoCiudad: b.rutaDestinoCiudad,
         fechaSalida: b.fechaSalida,
         horaSalidaProgramada: b.horaSalidaProgramada.toISOString(),
+        codigoTasa: b.codigoTasa,
+        estadoTasa: resolverEstadoTasa(b.codigoTasa, b.estadosTareasTasa),
       })),
     };
   }
@@ -1589,7 +1593,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
     const fila = filas.rows[0] as { monto_total: string; boleto_ids: string[] } | undefined;
     if (!fila) return null;
     const detalle = await this.dbPublico.execute(sql`
-      SELECT b.id::text AS id, va.numero_asiento, co.nombre_comercial,
+      SELECT b.id::text AS id, b.cooperativa_id::text AS cooperativa_id, va.numero_asiento, co.nombre_comercial,
              ori.ciudad AS origen_ciudad, dest.ciudad AS destino_ciudad,
              v.hora_salida_programada
       FROM boletos b
@@ -1608,6 +1612,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
       boletos: (
         detalle.rows as unknown as {
           id: string;
+          cooperativa_id: string;
           numero_asiento: string;
           nombre_comercial: string;
           origen_ciudad: string;
@@ -1616,6 +1621,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
         }[]
       ).map((d) => ({
         id: d.id,
+        cooperativaId: d.cooperativa_id,
         asiento: d.numero_asiento,
         cooperativa: d.nombre_comercial,
         origenCiudad: d.origen_ciudad,
@@ -1623,6 +1629,60 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
         horaSalida: d.hora_salida_programada,
       })),
     };
+  }
+
+  async confirmacionYaEnviada(compraId: string): Promise<boolean> {
+    const r = await this.dbPublico.execute(sql`
+      SELECT EXISTS (
+        SELECT 1 FROM notificaciones
+        WHERE compra_id = ${compraId} AND tipo = 'confirmacion_compra' AND estado_envio = 'enviado'
+      ) AS ya
+    `);
+    return Boolean((r.rows[0] as { ya: boolean }).ya);
+  }
+
+  async notificarCodigoAnden(
+    compraId: string,
+    adjuntos: { nombreArchivo: string; contenido: Buffer }[],
+    detalleBoletos: BoletoCorreo[],
+  ): Promise<void> {
+    const filas = await this.dbPublico.execute(sql`
+      SELECT COALESCE(NULLIF(c.correo_contacto, ''), u.correo) AS correo,
+             (c.comprador_usuario_id IS NOT NULL) AS tiene_cuenta,
+             EXISTS (
+               SELECT 1 FROM notificaciones n
+               WHERE n.compra_id = c.id AND n.tipo = 'confirmacion_compra' AND n.estado_envio = 'enviado'
+             ) AS ya_confirmada
+      FROM compras c
+      LEFT JOIN usuarios u ON u.id = c.comprador_usuario_id
+      WHERE c.id = ${compraId}
+    `);
+    const fila = filas.rows[0] as { correo: string | null; tiene_cuenta: boolean; ya_confirmada: boolean } | undefined;
+    // Si el correo de confirmación todavía no salió, su PDF ya llevará el código: no hay nada que avisar aparte.
+    if (!fila?.correo || !fila.ya_confirmada) return;
+
+    const [notif] = await this.dbPublico
+      .insert(notificaciones)
+      .values({ tipo: 'codigo_anden', canal: 'correo', compraId, correoDestino: fila.correo, estadoEnvio: 'pendiente' })
+      .returning();
+    try {
+      await this.email.enviarCodigoAnden(
+        fila.correo,
+        { compraId, tieneCuenta: fila.tiene_cuenta, boletos: detalleBoletos },
+        adjuntos,
+      );
+      await this.dbPublico
+        .update(notificaciones)
+        .set({ estadoEnvio: 'enviado', enviadoEn: new Date() })
+        .where(eq(notificaciones.id, notif.id));
+    } catch (error) {
+      const mensaje = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`No se pudo avisar el código de andén de la compra ${compraId}: ${mensaje}`);
+      await this.dbPublico
+        .update(notificaciones)
+        .set({ estadoEnvio: 'fallido', errorDetalle: mensaje })
+        .where(eq(notificaciones.id, notif.id));
+    }
   }
 
   async notificarCompraConfirmada(
@@ -1750,6 +1810,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
     compradorNombre: string;
     compradorDocumento: string | null;
     esVip: boolean;
+    codigoTasa: string | null;
   } | null> {
     const puntosOrigenPdf = alias(puntosOperacion, 'puntos_origen_pdf');
     const puntosDestinoPdf = alias(puntosOperacion, 'puntos_destino_pdf');
@@ -1780,6 +1841,7 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
         compradorNombreCuenta: usuarios.nombreCompleto,
         compradorCedulaCuenta: usuarios.cedula,
         esVip: boletos.esVip,
+        codigoTasa: tasaDeBoleto(boletos.compraId, boletos.cooperativaId).codigoTasa,
       })
       .from(boletos)
       .innerJoin(compras, eq(boletos.compraId, compras.id))

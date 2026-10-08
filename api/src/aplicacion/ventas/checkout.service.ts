@@ -4,6 +4,7 @@ import {
   Logger,
   BadRequestException,
   ForbiddenException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type {
@@ -65,7 +66,7 @@ function formatearHoraBoleto(hora: Date): string {
 }
 
 @Injectable()
-export class CheckoutService {
+export class CheckoutService implements OnModuleInit {
   private readonly logger = new Logger(CheckoutService.name);
 
   constructor(
@@ -80,6 +81,11 @@ export class CheckoutService {
     private readonly auditoria: AuditoriaRegistrador,
     private readonly postpago: PostpagoService,
   ) {}
+
+  onModuleInit(): void {
+    // Cuando el terminal confirma la tasa después de la compra, el pasajero recibe su boleto actualizado.
+    this.postpago.alTasaLista((compraId, cooperativaId) => this.enviarCodigoAndenPorCorreo(compraId, cooperativaId));
+  }
 
   /**
    * RF-CHECK-001 a 005 completo: valida los asientos, calcula el
@@ -509,6 +515,32 @@ export class CheckoutService {
     try {
       const resumen = await this.compras.obtenerResumenNotificacionCompra(compraId);
       if (!resumen) return;
+      const { adjuntos, detalleBoletos } = await this.prepararBoletosCorreo(compraId, resumen);
+      await this.compras.notificarCompraConfirmada(
+        compraId,
+        resumen.montoTotal,
+        resumen.boletoIds.length,
+        adjuntos,
+        detalleBoletos,
+      );
+    } catch (error) {
+      // No revierte la venta ya confirmada, pero se deja constancia en el log.
+      this.logger.error(
+        `No se pudo enviar el correo de la compra ${compraId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  /**
+   * Arma los PDF adjuntos y el detalle de boletos de un correo. Con `soloCooperativaId` solo
+   * incluye los boletos de esa cooperativa, pero el tramo (ida o vuelta) se sigue calculando
+   * con todos los de la compra.
+   */
+  private async prepararBoletosCorreo(
+    compraId: string,
+    resumen: NonNullable<Awaited<ReturnType<CompraRepositorio['obtenerResumenNotificacionCompra']>>>,
+    soloCooperativaId?: string,
+  ): Promise<{ adjuntos: { nombreArchivo: string; contenido: Buffer }[]; detalleBoletos: BoletoCorreo[] }> {
       // Ida y vuelta (26-sep-2026): si la compra tiene boletos de dos viajes
       // distintos, el más temprano es la IDA y el otro la VUELTA. Cada boleto
       // sale en su propio PDF, con el tramo y la ruta en el nombre del archivo.
@@ -551,6 +583,7 @@ export class CheckoutService {
       const adjuntos: { nombreArchivo: string; contenido: Buffer }[] = [];
       const detalleBoletos: BoletoCorreo[] = [];
       for (const b of resumen.boletos) {
+        if (soloCooperativaId && b.cooperativaId !== soloCooperativaId) continue;
         const tramo = tramoDe(b);
         detalleBoletos.push({
           tramo,
@@ -573,17 +606,25 @@ export class CheckoutService {
           );
         }
       }
-      await this.compras.notificarCompraConfirmada(
-        compraId,
-        resumen.montoTotal,
-        resumen.boletoIds.length,
-        adjuntos,
-        detalleBoletos,
-      );
+    return { adjuntos, detalleBoletos };
+  }
+
+  /**
+   * Cuando el código de tasa del terminal (el QR del torniquete) queda listo después de la
+   * compra, avisa al comprador con los boletos de esa cooperativa ya actualizados. Nunca lanza.
+   * Si el correo de confirmación todavía no salió, no envía nada: su PDF ya trae el código.
+   */
+  async enviarCodigoAndenPorCorreo(compraId: string, cooperativaId: string): Promise<void> {
+    try {
+      if (!(await this.compras.confirmacionYaEnviada(compraId))) return;
+      const resumen = await this.compras.obtenerResumenNotificacionCompra(compraId);
+      if (!resumen) return;
+      const { adjuntos, detalleBoletos } = await this.prepararBoletosCorreo(compraId, resumen, cooperativaId);
+      if (detalleBoletos.length === 0) return;
+      await this.compras.notificarCodigoAnden(compraId, adjuntos, detalleBoletos);
     } catch (error) {
-      // No revierte la venta ya confirmada, pero se deja constancia en el log.
       this.logger.error(
-        `No se pudo enviar el correo de la compra ${compraId}: ${error instanceof Error ? error.message : String(error)}`,
+        `No se pudo avisar el código de andén de la compra ${compraId}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -648,6 +689,11 @@ export class CheckoutService {
       width: 300,
       margin: 1,
     });
+    // Código de tasa del terminal (SIAT 3000): su QR es el que lee el torniquete
+    // del andén. Solo existe cuando la cooperativa ya lo registró.
+    const qrTasaBuffer = datos.codigoTasa
+      ? await QRCode.toBuffer(datos.codigoTasa, { width: 300, margin: 1 })
+      : null;
 
     return new Promise<Buffer>((resolve, reject) => {
       // Boleto compacto (24-sep-2026): tamaño A5 en vez de una hoja carta
@@ -935,9 +981,15 @@ export class CheckoutService {
       const xQr = margenIzq + 14;
       doc.image(qrBuffer, xQr, yQr, { width: tamanoQr, height: tamanoQr });
 
+      // Con el QR del terminal el talón se reparte entre dos códigos: los datos
+      // quedan en una columna más angosta y con letra un poco menor.
+      const tamanoQrTasa = 92;
+      const xQrTasa = anchoPagina - margenDer - 14 - tamanoQrTasa;
+
       // Datos clave repetidos junto al QR (lo que el personal mira al abordar).
       const xDatos = xQr + tamanoQr + 22;
-      const anchoDatos = anchoPagina - margenDer - xDatos - 8;
+      const anchoDatos = (qrTasaBuffer ? xQrTasa - 10 : anchoPagina - margenDer - 8) - xDatos;
+      const fuenteDatoTalon = qrTasaBuffer ? 13 : 15;
       const datoTalon = (etiqueta: string, valor: string, y: number) => {
         doc
           .fontSize(8)
@@ -945,7 +997,7 @@ export class CheckoutService {
           .font('Helvetica')
           .text(etiqueta, xDatos, y, { width: anchoDatos });
         doc
-          .fontSize(15)
+          .fontSize(fuenteDatoTalon)
           .fillColor(NEGRO_MARCA)
           .font('Helvetica-Bold')
           .text(valor, xDatos, y + 10, {
@@ -965,6 +1017,23 @@ export class CheckoutService {
         formatearHoraBoleto(datos.horaSalidaProgramada),
         yQr + 76,
       );
+
+      if (qrTasaBuffer && datos.codigoTasa) {
+        doc
+          .fontSize(6.5)
+          .fillColor(GRIS_ETIQUETA)
+          .font('Helvetica-Bold')
+          .text('ACCESO AL ANDÉN', xQrTasa - 6, yQr - 2, { width: tamanoQrTasa + 12, align: 'center' });
+        doc.image(qrTasaBuffer, xQrTasa, yQr + 8, { width: tamanoQrTasa, height: tamanoQrTasa });
+        doc
+          .fontSize(6.5)
+          .fillColor(TEXTO)
+          .font('Helvetica')
+          .text(datos.codigoTasa, xQrTasa - 6, yQr + 8 + tamanoQrTasa + 3, {
+            width: tamanoQrTasa + 12,
+            align: 'center',
+          });
+      }
 
       doc
         .fontSize(6.5)

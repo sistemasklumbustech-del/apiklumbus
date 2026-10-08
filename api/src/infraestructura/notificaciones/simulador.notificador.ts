@@ -29,6 +29,13 @@ export class SimuladorNotificador implements NotificadorEmail {
     );
   }
 
+  enviarCodigoAnden(correo: string, detalle: { compraId: string; boletos: unknown[] }, _adjuntos?: unknown[]): Promise<void> {
+    this.logger.log(
+      `[SIMULADO] Codigo de anden listo para ${correo} -> compra ${detalle.compraId}, ${detalle.boletos.length} boleto(s)`,
+    );
+    return Promise.resolve();
+  }
+
   enviarConsultaLlegada(
     correo: string,
     detalle: { ruta: string; horaSalida: string },

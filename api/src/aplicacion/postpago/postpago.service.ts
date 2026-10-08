@@ -84,6 +84,26 @@ const TIPO_PASAJERO_SIAT: Record<string, PasajeroParaTasa['tipo']> = {
 export class PostpagoService {
   private readonly logger = new Logger(PostpagoService.name);
   private enEjecucion = false;
+  private readonly oyentesTasaLista: ((compraId: string, cooperativaId: string) => Promise<void>)[] = [];
+
+  /**
+   * Registra quién quiere enterarse cuando el código de tasa de una compra queda listo
+   * (para avisar al pasajero). Es un registro y no una dependencia directa porque quien
+   * envía los correos, CheckoutService, ya depende de este servicio.
+   */
+  alTasaLista(oyente: (compraId: string, cooperativaId: string) => Promise<void>): void {
+    this.oyentesTasaLista.push(oyente);
+  }
+
+  private async avisarTasaLista(compraId: string, cooperativaId: string): Promise<void> {
+    for (const oyente of this.oyentesTasaLista) {
+      try {
+        await oyente(compraId, cooperativaId);
+      } catch (error) {
+        this.logger.warn(`Falló el aviso de tasa lista de la compra ${compraId}: ${this.mensaje(error)}`);
+      }
+    }
+  }
 
   constructor(
     @Inject(TAREAS_POSTPAGO_REPOSITORIO) private readonly repo: TareasPostpagoRepositorio,
@@ -244,6 +264,9 @@ export class PostpagoService {
     switch (salida.tipo) {
       case 'ok':
         await this.repo.marcarExitosa(tarea.id, salida.resultado);
+        if (tarea.tipo === 'registro_tasa' && tarea.cooperativaId) {
+          await this.avisarTasaLista(tarea.compraId, tarea.cooperativaId);
+        }
         return;
       case 'esperar':
         await this.repo.posponer(tarea.id, new Date(Date.now() + SEGUNDOS_ESPERA_DEPENDENCIA * 1000), salida.motivo);
@@ -349,6 +372,7 @@ export class PostpagoService {
     });
     await this.repo.marcarExitosa(tarea.id, { numeroFactura: datos.numeroFactura, codigoTasa: datos.codigoTasa, monto });
     await this.actualizarEstadoCompra(compraId);
+    await this.avisarTasaLista(compraId, cooperativaId);
     if (usuarioId) {
       await this.auditoria.registrar({
         accion: 'postpago_confirmacion_manual',

@@ -259,6 +259,21 @@ export interface NotificadorEmail {
     adjuntos?: AdjuntoCorreo[],
   ): Promise<void>;
 
+  /**
+   * Aviso de que el código de acceso al andén (QR de la tasa del terminal) ya está
+   * listo (07-oct-2026). Se envía solo si ese código llegó después del correo de
+   * confirmación; los boletos actualizados van adjuntos en PDF, con el nuevo QR.
+   */
+  enviarCodigoAnden(
+    correo: string,
+    detalle: {
+      compraId: string;
+      tieneCuenta?: boolean;
+      boletos: BoletoCorreo[];
+    },
+    adjuntos?: AdjuntoCorreo[],
+  ): Promise<void>;
+
   enviarVerificacionCorreo(correo: string, tokenPlano: string): Promise<void>;
 
   /**

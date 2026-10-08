@@ -130,6 +130,9 @@ export interface PasarelaPago {
   ): Promise<ResultadoPago>;
 }
 
+/** Estado del código de tasa del terminal (el QR del torniquete) de un boleto. */
+export type EstadoTasaBoleto = 'lista' | 'en_proceso' | 'en_revision' | 'no_aplica';
+
 export interface BoletoEmitido {
   id: string;
   codigoQr: string;
@@ -547,6 +550,7 @@ export interface CompraRepositorio {
     /** Cada boleto con su viaje (ruta, salida, asiento), en orden de salida -- para ida y vuelta. */
     boletos: {
       id: string;
+      cooperativaId: string;
       asiento: string;
       cooperativa: string;
       origenCiudad: string;
@@ -554,6 +558,20 @@ export interface CompraRepositorio {
       horaSalida: Date | string;
     }[];
   } | null>;
+
+  /**
+   * Avisa por correo que el código de tasa del terminal quedó listo, con los boletos
+   * actualizados. No hace nada si el correo de confirmación aún no salió (su PDF ya lo
+   * trae) ni si no hay a quién escribir. Nunca lanza.
+   */
+  /** Si el correo de confirmación de la compra ya salió (para saber si el código de andén llega como aviso aparte). */
+  confirmacionYaEnviada(compraId: string): Promise<boolean>;
+
+  notificarCodigoAnden(
+    compraId: string,
+    adjuntos: { nombreArchivo: string; contenido: Buffer }[],
+    detalleBoletos: BoletoCorreo[],
+  ): Promise<void>;
 
   /** Registra y envia (via NotificadorEmail) la confirmacion de una compra ya aprobada. Nunca lanza -- si falla, queda registrado como fallido, sin afectar la venta. */
   notificarCompraConfirmada(
@@ -612,6 +630,7 @@ export interface CompraRepositorio {
     compradorDocumento: string | null;
     /** Correccion real 18-ago-2026 -- el pasajero no sabia que su asiento era VIP. */
     esVip: boolean;
+    codigoTasa: string | null;
   } | null>;
 }
 
@@ -628,6 +647,9 @@ export interface DetalleBoletoRecibo {
   rutaDestinoCiudad: string;
   fechaSalida: string;
   horaSalidaProgramada: string;
+  /** 20 dígitos del SIAT 3000; null mientras no esté lista (ver estadoTasa). */
+  codigoTasa: string | null;
+  estadoTasa: EstadoTasaBoleto;
 }
 
 export interface ReciboCompra {

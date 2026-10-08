@@ -146,6 +146,8 @@ export const tipoNotificacionEnum = pgEnum('tipo_notificacion', [
   'cambio_operativo',
   'aviso_llegada',
   'solicitud_calificacion',
+  // 07-oct-2026 -- el código de tasa del terminal (QR del torniquete) quedó listo después de la compra.
+  'codigo_anden',
 ]);
 
 /** RF-ADMIN-005 — auditoría de acciones administrativas críticas. */

@@ -413,6 +413,33 @@ describe('Checkout y pago (e2e)', () => {
       expect(facturaCoop.rows[0].estado).toBe('autorizado');
     });
 
+    it('el pasajero ve el código de tasa de su boleto en el recibo y en Mis boletos, y no se le avisa aparte', async () => {
+      const recibo = await request(app.getHttpServer())
+        .get(`/compras/${compraId}`)
+        .set('Authorization', `Bearer ${tokenPasajero}`)
+        .expect(200);
+      expect(recibo.body.boletos[0].estadoTasa).toBe('lista');
+      expect(recibo.body.boletos[0].codigoTasa).toMatch(/^\d{20}$/);
+
+      const mis = await request(app.getHttpServer())
+        .get('/calificaciones/mis-boletos?limite=50')
+        .set('Authorization', `Bearer ${tokenPasajero}`)
+        .expect(200);
+      const boleto = mis.body.filas.find((f: { boletoId: string }) => f.boletoId === recibo.body.boletos[0].boletoId);
+      expect(boleto).toMatchObject({ estadoTasa: 'lista', codigoTasa: recibo.body.boletos[0].codigoTasa });
+
+      const pdf = await request(app.getHttpServer())
+        .get(`/calificaciones/mis-boletos/${recibo.body.boletos[0].boletoId}/pdf`)
+        .set('Authorization', `Bearer ${tokenPasajero}`)
+        .buffer(true)
+        .expect(200);
+      expect((pdf.body as Buffer).subarray(0, 4).toString()).toBe('%PDF');
+
+      // La tasa estuvo lista antes del correo de confirmación, que ya la trae: no hay un segundo aviso.
+      const avisos = await consultar(`SELECT 1 FROM notificaciones WHERE compra_id = $1 AND tipo = 'codigo_anden'`, [compraId]);
+      expect(avisos).toHaveLength(0);
+    });
+
     it('el administrador ve las tareas de la compra, y un pasajero no puede', async () => {
       const res = await request(app.getHttpServer())
         .get(`/admin/postpago/tareas?compraId=${compraId}`)
@@ -791,6 +818,11 @@ describe('Checkout y pago (e2e)', () => {
         cliente: expect.objectContaining({ identificacion: '1701001370' }),
       });
       expect(venta.totalAFacturar).toBeGreaterThan(0);
+      const reciboAntes = await request(app.getHttpServer())
+        .get(`/compras/${compraA}`)
+        .set('Authorization', `Bearer ${tokenPasajero}`)
+        .expect(200);
+      expect(reciboAntes.body.boletos[0]).toMatchObject({ estadoTasa: 'en_proceso', codigoTasa: null });
       expect(venta.pasajeros).toEqual([
         expect.objectContaining({
           asientoEtiqueta: '2A',
@@ -838,6 +870,18 @@ describe('Checkout y pago (e2e)', () => {
         [compraA],
       );
       expect(tasa).toEqual({ estado: 'exitosa', codigo_tasa: '12345678901234567890' });
+
+      // El pasajero ya ve su código de andén, y se le avisó por correo porque el de confirmación había salido sin él.
+      const reciboDespues = await request(app.getHttpServer())
+        .get(`/compras/${compraA}`)
+        .set('Authorization', `Bearer ${tokenPasajero}`)
+        .expect(200);
+      expect(reciboDespues.body.boletos[0]).toMatchObject({ estadoTasa: 'lista', codigoTasa: '12345678901234567890' });
+      const avisos = await consultar<{ estado_envio: string }>(
+        `SELECT estado_envio FROM notificaciones WHERE compra_id = $1 AND tipo = 'codigo_anden'`,
+        [compraA],
+      );
+      expect(avisos).toEqual([{ estado_envio: 'enviado' }]);
       const auditoria = await consultar(
         `SELECT 1 FROM auditoria_admin WHERE accion = 'postpago_confirmacion_manual' AND detalle->>'compraId' = $1`,
         [compraA],

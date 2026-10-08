@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { randomBytes, randomInt } from 'node:crypto';
+import { randomInt } from 'node:crypto';
 import type {
   ProveedorIntegracionTerminal,
   BusTerminal,
@@ -111,7 +111,7 @@ export class SimuladorIntegracionTerminal implements ProveedorIntegracionTermina
     // Código de tasa real tiene 20 dígitos (RF-010) -- se simula con el
     // mismo largo exacto para que la generación de QR y cualquier
     // validación de formato funcionen igual el día del reemplazo real.
-    const codigoTasaSimulado = randomBytes(10).toString('hex').slice(0, 20);
+    const codigoTasaSimulado = Array.from({ length: 20 }, () => randomInt(0, 10)).join('');
     return Promise.resolve({
       exitoso: true,
       codigoTasa: codigoTasaSimulado,
