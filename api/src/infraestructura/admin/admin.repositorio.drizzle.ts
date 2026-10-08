@@ -38,6 +38,7 @@ import type {
   FiltrosConciliacionSql,
   FiltrosCooperativas,
   ResultadoCooperativas,
+  CooperativaDetalle,
   FiltrosPuntosOperacion,
   ResultadoPuntosOperacion,
   FiltrosAdministradores,
@@ -168,7 +169,7 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
     const offset = (filtros.pagina - 1) * filtros.limite;
     const resultado = await this.db.execute(sql`
       SELECT id, ruc, razon_social, nombre_comercial, estado,
-             contacto_nombre, contacto_correo, contacto_telefono, fecha_afiliacion
+             contacto_nombre, contacto_correo, contacto_telefono, fecha_afiliacion, modo_operacion
       FROM cooperativas
       ${donde}
       ORDER BY nombre_comercial ASC
@@ -185,9 +186,11 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
         contacto_correo: string | null;
         contacto_telefono: string | null;
         fecha_afiliacion: Date | string | null;
+        modo_operacion: CooperativaDetalle['modoOperacion'];
       };
       return {
         id: f.id,
+        modoOperacion: f.modo_operacion,
         ruc: f.ruc,
         razonSocial: f.razon_social,
         nombreComercial: f.nombre_comercial,

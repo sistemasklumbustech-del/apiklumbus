@@ -5,6 +5,7 @@ import { NotificacionesProgramadasService } from '../notificaciones-programadas/
 import { GeneradorViajesService } from '../generador-viajes/generador-viajes.service';
 import { WalletService } from '../wallet/wallet.service';
 import { ReferidosService } from '../referidos/referidos.service';
+import { DespachadorWebhooksService } from '../webhooks/despachador-webhooks.service';
 import type {
   PanelEmpresaRepositorio,
   FiltrosVentas,
@@ -49,6 +50,7 @@ export class PanelEmpresaService {
     private readonly generadorViajes: GeneradorViajesService,
     private readonly wallet: WalletService,
     private readonly referidos: ReferidosService,
+    private readonly despachadorWebhooks: DespachadorWebhooksService,
   ) {}
 
   crearTipoVehiculo(cooperativaId: string, datos: DatosNuevoTipoVehiculo) {
@@ -488,6 +490,11 @@ export class PanelEmpresaService {
 
   rotarCredencialApi(cooperativaId: string, credencialId: string) {
     return this.panel.rotarCredencialApi(cooperativaId, credencialId);
+  }
+
+  /** Null si esa llave no está activa o no tiene URL de webhook. */
+  probarWebhook(cooperativaId: string, credencialId: string) {
+    return this.despachadorWebhooks.dispararEventoPrueba(cooperativaId, credencialId);
   }
 
   regenerarWebhookSecreto(cooperativaId: string, credencialId: string) {

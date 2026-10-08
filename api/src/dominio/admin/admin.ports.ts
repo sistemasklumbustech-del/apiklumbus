@@ -187,6 +187,7 @@ export interface CooperativaDetalle {
   contactoCorreo: string | null;
   contactoTelefono: string | null;
   fechaAfiliacion: string | null;
+  modoOperacion: 'plataforma_completa' | 'intermediario_con_cobro' | 'intermediario_venta';
 }
 
 export interface FiltrosCooperativas {

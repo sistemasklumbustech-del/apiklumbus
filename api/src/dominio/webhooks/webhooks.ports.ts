@@ -20,6 +20,7 @@ export interface WebhooksRepositorio {
   /** null si la cooperativa no tiene credencial activa con webhook configurado -- no es un error, Modelo B es opcional. */
   obtenerWebhookActivo(
     cooperativaId: string,
+    credencialId?: string,
   ): Promise<{ webhookUrl: string; secretoCifrado: string | null } | null>;
 
   crearEventoWebhook(

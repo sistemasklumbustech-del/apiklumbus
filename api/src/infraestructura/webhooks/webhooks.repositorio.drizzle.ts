@@ -22,10 +22,12 @@ export class WebhooksRepositorioDrizzle implements WebhooksRepositorio {
 
   async obtenerWebhookActivo(
     cooperativaId: string,
+    credencialId?: string,
   ): Promise<{ webhookUrl: string; secretoCifrado: string | null } | null> {
+    const filtroCredencial = credencialId ? sql`AND id = ${credencialId}` : sql``;
     const resultado = await this.db.execute(sql`
       SELECT webhook_url, webhook_secreto_cifrado FROM credenciales_api
-      WHERE cooperativa_id = ${cooperativaId} AND activo = true AND webhook_url IS NOT NULL
+      WHERE cooperativa_id = ${cooperativaId} AND activo = true AND webhook_url IS NOT NULL ${filtroCredencial}
       ORDER BY creado_en DESC
       LIMIT 1
     `);

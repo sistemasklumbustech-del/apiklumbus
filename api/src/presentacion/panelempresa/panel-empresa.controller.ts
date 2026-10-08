@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  HttpCode,
   Body,
   Controller,
   Delete,
@@ -803,6 +804,21 @@ export class PanelEmpresaController {
     @Request() req: { user: PayloadToken },
   ) {
     return this.panel.regenerarWebhookSecreto(cooperativaDelToken(req.user), id);
+  }
+
+  /** Envía un evento de prueba firmado a la URL de esa llave, para comprobar la URL y la verificación de firma. */
+  @Roles('admin_cooperativa')
+  @Post('credenciales-api/:id/webhook-prueba')
+  @HttpCode(200)
+  async probarWebhook(
+    @Param('id') id: string,
+    @Request() req: { user: PayloadToken },
+  ) {
+    const resultado = await this.panel.probarWebhook(cooperativaDelToken(req.user), id);
+    if (!resultado) {
+      throw new BadRequestException('Esa llave no está activa o no tiene una URL de webhook configurada.');
+    }
+    return resultado;
   }
 
   @Roles('admin_cooperativa')

@@ -73,8 +73,11 @@ export class DespachadorWebhooksService {
    * registrarlo en la cola ni reintentar: sirve para que su equipo compruebe
    * la URL y su verificación de firma antes de la primera venta real.
    */
-  async dispararEventoPrueba(cooperativaId: string): Promise<ResultadoEnvioPrueba | null> {
-    const credencial = await this.repo.obtenerWebhookActivo(cooperativaId);
+  async dispararEventoPrueba(
+    cooperativaId: string,
+    credencialId?: string,
+  ): Promise<ResultadoEnvioPrueba | null> {
+    const credencial = await this.repo.obtenerWebhookActivo(cooperativaId, credencialId);
     if (!credencial) return null;
     const payload = {
       evento: 'prueba',

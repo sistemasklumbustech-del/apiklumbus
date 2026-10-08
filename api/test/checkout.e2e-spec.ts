@@ -839,6 +839,44 @@ describe('Checkout y pago (e2e)', () => {
       secreto = nuevo.body.webhookSecreto;
     });
 
+    it('desde el panel la cooperativa prueba el webhook de una llave concreta, y no el de otra', async () => {
+      const antes = recibidos.length;
+      const res = await request(app.getHttpServer())
+        .post(`/coop/credenciales-api/${credencialId}/webhook-prueba`)
+        .set('Authorization', `Bearer ${tokenCoopRechazo}`)
+        .expect(200);
+      expect(res.body).toEqual({ entregado: true, firmado: true, respuesta: 'HTTP 200' });
+      expect(verificar(recibidos[antes], secreto)).toBe('valida');
+
+      await request(app.getHttpServer())
+        .post('/coop/credenciales-api/00000000-0000-4000-8000-000000000000/webhook-prueba')
+        .set('Authorization', `Bearer ${tokenCoopRechazo}`)
+        .expect(400);
+      await request(app.getHttpServer())
+        .post(`/coop/credenciales-api/${credencialId}/webhook-prueba`)
+        .set('Authorization', `Bearer ${tokenPasajero}`)
+        .expect(403);
+    });
+
+    it('el admin ve el modo de operación de cada cooperativa y no puede pasar a intermediario de venta todavía', async () => {
+      const [{ cooperativa_id }] = await consultar<{ cooperativa_id: string }>(
+        `SELECT cooperativa_id FROM credenciales_api WHERE id = $1`,
+        [credencialId],
+      );
+      const lista = await request(app.getHttpServer())
+        .get('/admin/cooperativas/buscar?pagina=1&limite=100')
+        .set('Authorization', `Bearer ${tokenAdmin}`)
+        .expect(200);
+      const fila = lista.body.filas.find((f: { id: string }) => f.id === cooperativa_id);
+      expect(['plataforma_completa', 'intermediario_con_cobro']).toContain(fila.modoOperacion);
+
+      await request(app.getHttpServer())
+        .patch(`/admin/cooperativas/${cooperativa_id}/modo-operacion`)
+        .set('Authorization', `Bearer ${tokenAdmin}`)
+        .send({ modoOperacion: 'intermediario_venta' })
+        .expect(400);
+    });
+
     it('un reintento se firma de nuevo con un timestamp vigente', async () => {
       const [{ cooperativa_id }] = await consultar<{ cooperativa_id: string }>(
         `SELECT cooperativa_id FROM credenciales_api WHERE id = $1`,

@@ -19,6 +19,7 @@ import { NotificacionesProgramadasModule } from '../notificaciones-programadas/n
 import { GeneradorViajesModule } from '../generador-viajes/generador-viajes.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { ReferidosModule } from '../referidos/referidos.module';
+import { WebhooksModule } from '../webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { ReferidosModule } from '../referidos/referidos.module';
     NotificacionesProgramadasModule,
     GeneradorViajesModule,
     WalletModule,
+    WebhooksModule,
     ReferidosModule,
   ],
   controllers: [
