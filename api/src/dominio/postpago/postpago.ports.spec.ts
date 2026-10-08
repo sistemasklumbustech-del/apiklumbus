@@ -1,7 +1,9 @@
 import {
   calcularProximoIntento,
+  capacidadesDeModo,
   estadoCompraSegunTareas,
   tareasParaCompra,
+  type CooperativaDeCompra,
 } from './postpago.ports';
 
 describe('calcularProximoIntento', () => {
@@ -25,8 +27,14 @@ describe('calcularProximoIntento', () => {
 });
 
 describe('tareasParaCompra', () => {
-  it('crea factura y tasa por cooperativa, y la factura de la plataforma si hay cargo', () => {
-    expect(tareasParaCompra(['a', 'b'], 1)).toEqual([
+  const coop = (id: string, modo: CooperativaDeCompra['modo'], tieneIntegracionApi = false): CooperativaDeCompra => ({
+    id,
+    modo,
+    tieneIntegracionApi,
+  });
+
+  it('plataforma completa: Klumbus factura el pasaje y registra la tasa de cada cooperativa', () => {
+    expect(tareasParaCompra([coop('a', 'plataforma_completa'), coop('b', 'plataforma_completa')], 1)).toEqual([
       { tipo: 'factura_pasaje', cooperativaId: 'a' },
       { tipo: 'registro_tasa', cooperativaId: 'a' },
       { tipo: 'factura_pasaje', cooperativaId: 'b' },
@@ -35,13 +43,51 @@ describe('tareasParaCompra', () => {
     ]);
   });
 
+  it('intermediario con cobro y llave API: se espera el reporte de la cooperativa, no se factura por ella', () => {
+    expect(tareasParaCompra([coop('a', 'intermediario_con_cobro', true)], 0.5)).toEqual([
+      { tipo: 'confirmacion_cooperativa', cooperativaId: 'a' },
+      { tipo: 'factura_plataforma', cooperativaId: null },
+    ]);
+  });
+
+  it('intermediario sin llave API: la cooperativa factura por su cuenta, como siempre, y no se le espera nada', () => {
+    expect(tareasParaCompra([coop('a', 'intermediario_con_cobro', false)], 0.5)).toEqual([
+      { tipo: 'factura_plataforma', cooperativaId: null },
+    ]);
+  });
+
+  it('una compra puede mezclar cooperativas de modos distintos', () => {
+    expect(
+      tareasParaCompra([coop('a', 'plataforma_completa'), coop('b', 'intermediario_con_cobro', true)], 0).map(
+        (t) => `${t.tipo}:${t.cooperativaId}`,
+      ),
+    ).toEqual(['factura_pasaje:a', 'registro_tasa:a', 'confirmacion_cooperativa:b']);
+  });
+
   it('no crea factura de la plataforma cuando no hay cargo', () => {
-    expect(tareasParaCompra(['a'], 0).map((t) => t.tipo)).toEqual(['factura_pasaje', 'registro_tasa']);
+    expect(tareasParaCompra([coop('a', 'plataforma_completa')], 0).map((t) => t.tipo)).toEqual([
+      'factura_pasaje',
+      'registro_tasa',
+    ]);
+  });
+});
+
+describe('capacidadesDeModo', () => {
+  it('cada modo reparte las responsabilidades distinto', () => {
+    expect(capacidadesDeModo('plataforma_completa')).toEqual({
+      klumbusFacturaPasaje: true,
+      klumbusRegistraTasa: true,
+      cooperativaReporta: false,
+      klumbusCobraEnLinea: true,
+    });
+    expect(capacidadesDeModo('intermediario_con_cobro').klumbusCobraEnLinea).toBe(true);
+    expect(capacidadesDeModo('intermediario_con_cobro').cooperativaReporta).toBe(true);
+    expect(capacidadesDeModo('intermediario_venta').klumbusCobraEnLinea).toBe(false);
   });
 });
 
 describe('estadoCompraSegunTareas', () => {
-  const t = (tipo: 'factura_pasaje' | 'registro_tasa' | 'factura_plataforma', estado: 'pendiente' | 'exitosa' | 'agotada') => ({
+  const t = (tipo: 'factura_pasaje' | 'registro_tasa' | 'factura_plataforma' | 'confirmacion_cooperativa', estado: 'pendiente' | 'exitosa' | 'agotada') => ({
     tipo,
     estado,
   });
@@ -50,6 +96,15 @@ describe('estadoCompraSegunTareas', () => {
     expect(
       estadoCompraSegunTareas([t('factura_pasaje', 'exitosa'), t('registro_tasa', 'exitosa'), t('factura_plataforma', 'exitosa')]),
     ).toBe('completada');
+  });
+
+  it('la confirmación de la cooperativa cuenta como factura y tasa a la vez', () => {
+    expect(
+      estadoCompraSegunTareas([t('confirmacion_cooperativa', 'exitosa'), t('factura_plataforma', 'exitosa')]),
+    ).toBe('completada');
+    expect(
+      estadoCompraSegunTareas([t('confirmacion_cooperativa', 'exitosa'), t('factura_plataforma', 'pendiente')]),
+    ).toBe('tasa_confirmada');
   });
 
   it('tasa confirmada cuando solo falta la factura de la plataforma', () => {

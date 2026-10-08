@@ -22,7 +22,13 @@ import {
   index,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { estadoCooperativaEnum, modeloIntegracionEnum, tipoPuntoOperacionEnum, estadoPuntoOperacionEnum } from './enums';
+import {
+  estadoCooperativaEnum,
+  modeloIntegracionEnum,
+  modoOperacionEnum,
+  tipoPuntoOperacionEnum,
+  estadoPuntoOperacionEnum,
+} from './enums';
 import { usuarios } from './usuarios';
 
 export const cooperativas = pgTable(
@@ -44,6 +50,11 @@ export const cooperativas = pgTable(
     // No hay valor por defecto implícito: se exige elegir explícitamente
     // en el flujo de afiliación (RF-COOP-001), por eso no tiene .default().
     modeloIntegracion: modeloIntegracionEnum('modelo_integracion').notNull(),
+
+    // 07-oct-2026 -- qué hace Klumbus por esta cooperativa (migración 0060).
+    // Por defecto, el comportamiento de siempre: Klumbus vende, cobra y
+    // liquida; la cooperativa factura y registra la tasa por su cuenta.
+    modoOperacion: modoOperacionEnum('modo_operacion').default('intermediario_con_cobro').notNull(),
 
     contactoNombre: varchar('contacto_nombre', { length: 150 }),
     contactoCorreo: varchar('contacto_correo', { length: 200 }),

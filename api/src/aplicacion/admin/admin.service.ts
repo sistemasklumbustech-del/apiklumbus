@@ -226,6 +226,27 @@ export class AdminService {
   }
 
   /**
+   * Modo de operación (07-oct-2026). 'intermediario_venta' todavía no se puede
+   * asignar: significa que la cooperativa cobra con su propia pasarela, y ese
+   * pago a cargo de la cooperativa no está construido. Asignarlo hoy dejaría
+   * a Klumbus cobrando de todas formas, en contra de lo que dice el modo.
+   */
+  async cambiarModoOperacionCooperativa(
+    id: string,
+    modo: 'plataforma_completa' | 'intermediario_con_cobro' | 'intermediario_venta',
+    usuarioId: string,
+  ): Promise<{ ok: true } | { ok: false; motivo: string }> {
+    if (modo === 'intermediario_venta') {
+      return {
+        ok: false,
+        motivo:
+          'El modo "intermediario de venta" todavía no está disponible: falta el cobro a cargo de la cooperativa.',
+      };
+    }
+    return this.admin.cambiarModoOperacionCooperativa(id, modo, usuarioId);
+  }
+
+  /**
    * RF-017, paginación real (22-sep-2026) -- ver el comentario de
    * ConciliacionQueryDto. soloDiscrepancias/pagina/limite se resuelven
    * acá (después de calcularDiscrepancias, lógica de negocio pura),

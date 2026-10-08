@@ -46,7 +46,7 @@ export const credencialesApi = pgTable(
       .notNull(),
 
     tipo: varchar('tipo', { length: 20 }).notNull(), // 'api_key' | 'oauth2_client'
-    apiKeyPrefix: varchar('api_key_prefix', { length: 20 }),
+    apiKeyPrefix: varchar('api_key_prefix', { length: 32 }),
     apiKeyHash: varchar('api_key_hash', { length: 255 }),
     oauthClientId: varchar('oauth_client_id', { length: 100 }),
     oauthClientSecretHash: varchar('oauth_client_secret_hash', { length: 255 }),

@@ -5,6 +5,8 @@ import type { DrizzleDb } from '../database/database.provider';
 import type {
   ClienteFactura,
   ContextoVentaCooperativa,
+  CooperativaDeCompra,
+  ModoOperacion,
   EstadoTareaPostpago,
   FiltrosTareasPostpago,
   TareaPostpago,
@@ -205,18 +207,29 @@ export class TareasPostpagoRepositorioDrizzle implements TareasPostpagoRepositor
     `);
   }
 
-  async cooperativasYCargoDeCompra(compraId: string): Promise<{ cooperativaIds: string[]; cargoPlataforma: number }> {
+  async cooperativasYCargoDeCompra(
+    compraId: string,
+  ): Promise<{ cooperativas: CooperativaDeCompra[]; cargoPlataforma: number }> {
     const coops = await this.db.execute(sql`
-      SELECT DISTINCT v.cooperativa_id
+      SELECT DISTINCT v.cooperativa_id AS id, co.modo_operacion AS modo,
+             EXISTS (
+               SELECT 1 FROM credenciales_api ca
+               WHERE ca.cooperativa_id = v.cooperativa_id AND ca.activo = true AND ca.revocado_en IS NULL
+             ) AS tiene_api
       FROM pasajeros_compra pc
       JOIN viaje_asientos va ON va.id = pc.viaje_asiento_id
       JOIN viajes v ON v.id = va.viaje_id
+      JOIN cooperativas co ON co.id = v.cooperativa_id
       WHERE pc.compra_id = ${compraId}
       ORDER BY v.cooperativa_id
     `);
     const compra = await this.db.execute(sql`SELECT monto_cargo_plataforma FROM compras WHERE id = ${compraId}`);
     return {
-      cooperativaIds: (coops.rows as unknown as { cooperativa_id: string }[]).map((f) => f.cooperativa_id),
+      cooperativas: (coops.rows as unknown as { id: string; modo: ModoOperacion; tiene_api: boolean }[]).map((f) => ({
+        id: f.id,
+        modo: f.modo,
+        tieneIntegracionApi: f.tiene_api,
+      })),
       cargoPlataforma: Number((compra.rows[0] as { monto_cargo_plataforma: string } | undefined)?.monto_cargo_plataforma ?? 0),
     };
   }

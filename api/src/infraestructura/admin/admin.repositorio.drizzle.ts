@@ -948,6 +948,38 @@ export class AdminRepositorioDrizzle implements AdminRepositorio {
     });
   }
 
+  async cambiarModoOperacionCooperativa(
+    id: string,
+    modo: 'plataforma_completa' | 'intermediario_con_cobro' | 'intermediario_venta',
+    usuarioId: string,
+  ): Promise<{ ok: true } | { ok: false; motivo: string }> {
+    return this.db.transaction(async (tx) => {
+      const [actual] = await tx
+        .select({ estado: cooperativas.estado, modo: cooperativas.modoOperacion })
+        .from(cooperativas)
+        .where(eq(cooperativas.id, id));
+      if (!actual) {
+        return { ok: false as const, motivo: 'Esa cooperativa no existe.' };
+      }
+      if (actual.estado === 'dada_de_baja') {
+        return { ok: false as const, motivo: 'Esta cooperativa está dada de baja.' };
+      }
+      if (actual.modo === modo) {
+        return { ok: false as const, motivo: 'La cooperativa ya opera en ese modo.' };
+      }
+      await tx
+        .update(cooperativas)
+        .set({ modoOperacion: modo, actualizadoEn: new Date() })
+        .where(eq(cooperativas.id, id));
+      const detalle = JSON.stringify({ antes: actual.modo, despues: modo });
+      await tx.execute(sql`
+        INSERT INTO auditoria_admin (accion, usuario_id, entidad_tipo, entidad_id, detalle, direccion_ip)
+        VALUES ('cambio_modo_operacion', ${usuarioId}, 'cooperativa', ${id}, ${detalle}::jsonb, ${ipActual()})
+      `);
+      return { ok: true as const };
+    });
+  }
+
   /**
    * RF-017 -- una fila por boleto. `pago` se resuelve con LATERAL en vez
    * de un LEFT JOIN plano porque una compra puede tener más de un intento

@@ -9,6 +9,7 @@ import type {
 import { PROVEEDOR_INTEGRACION_TERMINAL } from '../../dominio/integraciones-terminal/integracion-terminal.ports';
 import {
   ErrorProveedorSinEfecto,
+  MINUTOS_ESPERA_CONFIRMACION_COOPERATIVA,
   PROVEEDOR_FACTURACION_POSTPAGO,
   TAREAS_POSTPAGO_REPOSITORIO,
   calcularProximoIntento,
@@ -34,6 +35,7 @@ const PRIORIDAD: Record<TareaPostpago['tipo'], number> = {
   factura_pasaje: 1,
   registro_tasa: 2,
   factura_plataforma: 3,
+  confirmacion_cooperativa: 2,
 };
 
 const SEGUNDOS_ESPERA_DEPENDENCIA = 30;
@@ -84,8 +86,8 @@ export class PostpagoService {
    */
   async programarYProcesar(compraId: string): Promise<void> {
     try {
-      const { cooperativaIds, cargoPlataforma } = await this.repo.cooperativasYCargoDeCompra(compraId);
-      await this.repo.programar(compraId, tareasParaCompra(cooperativaIds, cargoPlataforma));
+      const { cooperativas, cargoPlataforma } = await this.repo.cooperativasYCargoDeCompra(compraId);
+      await this.repo.programar(compraId, tareasParaCompra(cooperativas, cargoPlataforma));
       await this.procesarCompra(compraId);
     } catch (error) {
       this.logger.error(
@@ -204,7 +206,70 @@ export class PostpagoService {
         return this.registrarTasa(tarea);
       case 'factura_plataforma':
         return this.facturarPlataforma(tarea);
+      case 'confirmacion_cooperativa':
+        return this.esperarConfirmacionCooperativa(tarea);
     }
+  }
+
+  /**
+   * La factura y la tasa las hace el sistema de la cooperativa, que debe
+   * reportarlas con confirmarDesdeCooperativa. Esta tarea solo vigila que
+   * llegue a tiempo: si pasa el plazo, queda para revisión de una persona
+   * (la venta ya está cobrada y el pasajero no puede quedarse esperando).
+   */
+  private esperarConfirmacionCooperativa(tarea: TareaPostpago): Promise<Resultado> {
+    const minutos = (Date.now() - new Date(tarea.creadoEn).getTime()) / 60_000;
+    if (minutos >= MINUTOS_ESPERA_CONFIRMACION_COOPERATIVA) {
+      return Promise.resolve({
+        tipo: 'bloqueada',
+        error: `El sistema de la cooperativa no reportó la factura y la tasa en ${MINUTOS_ESPERA_CONFIRMACION_COOPERATIVA} minutos.`,
+      });
+    }
+    return Promise.resolve({ tipo: 'esperar', motivo: 'Esperando que el sistema de la cooperativa reporte la factura y la tasa.' });
+  }
+
+  /**
+   * La cooperativa (con su llave API) reporta la factura y el código de tasa
+   * de una venta que hizo su propio sistema. Es idempotente, y se acepta
+   * también fuera de plazo: la venta es real aunque haya llegado tarde.
+   */
+  async confirmarDesdeCooperativa(
+    compraId: string,
+    cooperativaId: string,
+    datos: {
+      numeroFactura: string;
+      claveAcceso?: string;
+      numeroAutorizacion?: string;
+      urlFactura?: string;
+      codigoTasa: string;
+    },
+  ): Promise<'ok' | 'sin_tarea'> {
+    const tareas = await this.repo.tareasDeCompra(compraId);
+    const tarea = tareas.find((t) => t.tipo === 'confirmacion_cooperativa' && t.cooperativaId === cooperativaId);
+    if (!tarea) return 'sin_tarea';
+    if (tarea.estado === 'exitosa') return 'ok';
+
+    const ctx = await this.repo.contextoVenta(compraId, cooperativaId);
+    if (!ctx) return 'sin_tarea';
+    const monto = this.redondear(ctx.pasajeros.reduce((a, p) => a + p.precioPagado + p.tasaTerminal, 0));
+
+    await this.repo.guardarComprobanteCooperativa(compraId, cooperativaId, {
+      rucEmisor: ctx.cooperativaRuc,
+      monto,
+      claveAcceso: datos.claveAcceso,
+      numeroAutorizacion: datos.numeroAutorizacion,
+      pdfUrl: datos.urlFactura,
+    });
+    await this.repo.guardarResultadoTasa(compraId, cooperativaId, {
+      exitoso: true,
+      codigoTasa: datos.codigoTasa,
+      mensaje: 'Reportado por el sistema de la cooperativa.',
+      solicitud: { facturaNumero: datos.numeroFactura, totalFacturado: monto },
+      respuesta: { origen: 'cooperativa' },
+    });
+    await this.repo.marcarExitosa(tarea.id, { numeroFactura: datos.numeroFactura, codigoTasa: datos.codigoTasa, monto });
+    await this.actualizarEstadoCompra(compraId);
+    return 'ok';
   }
 
   private async facturarPasaje(tarea: TareaPostpago): Promise<Resultado> {

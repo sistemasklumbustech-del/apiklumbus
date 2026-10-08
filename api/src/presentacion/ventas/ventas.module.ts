@@ -38,6 +38,6 @@ import { SimuladorIntegracionTerminal } from '../../infraestructura/integracione
     // Mientras el SIAT 3000 no esté conectado (fase 3), el terminal es el simulador.
     { provide: PROVEEDOR_INTEGRACION_TERMINAL, useClass: SimuladorIntegracionTerminal },
   ],
-  exports: [CheckoutService],
+  exports: [CheckoutService, PostpagoService],
 })
 export class VentasModule {}

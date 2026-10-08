@@ -18,6 +18,7 @@ import { AdminService } from '../../aplicacion/admin/admin.service';
 import {
   CrearCooperativaDto,
   CambiarEstadoCooperativaDto,
+  CambiarModoOperacionDto,
   CrearPuntoOperacionDto,
   ActualizarPuntoOperacionDto,
   ActualizarIvaNacionalDto,
@@ -91,6 +92,20 @@ export class AdminController {
       req.user.sub,
       dto.motivo,
     );
+    if (!resultado.ok) {
+      throw new BadRequestException(resultado.motivo);
+    }
+    return { ok: true };
+  }
+
+  /** Modo de operación (07-oct-2026): plataforma completa o intermediario. Con auditoría. */
+  @Patch('cooperativas/:id/modo-operacion')
+  async cambiarModoOperacion(
+    @Param('id') id: string,
+    @Body() dto: CambiarModoOperacionDto,
+    @Request() req: { user: PayloadToken },
+  ) {
+    const resultado = await this.admin.cambiarModoOperacionCooperativa(id, dto.modoOperacion, req.user.sub);
     if (!resultado.ok) {
       throw new BadRequestException(resultado.motivo);
     }

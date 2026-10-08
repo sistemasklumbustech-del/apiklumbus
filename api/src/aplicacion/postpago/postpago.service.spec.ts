@@ -1,6 +1,7 @@
 import { PostpagoService } from './postpago.service';
 import {
   ErrorProveedorSinEfecto,
+  type ModoOperacion,
   type ContextoVentaCooperativa,
   type TareaPostpago,
   type TareasPostpagoRepositorio,
@@ -45,7 +46,7 @@ class RepoEnMemoria implements TareasPostpagoRepositorio {
         proximoIntentoEn: new Date(0).toISOString(),
         ultimoError: null,
         resultado: null,
-        creadoEn: new Date(this.secuencia).toISOString(),
+        creadoEn: new Date().toISOString(),
         completadoEn: null,
       });
     }
@@ -94,8 +95,13 @@ class RepoEnMemoria implements TareasPostpagoRepositorio {
   obtener(id: string) {
     return Promise.resolve(this.tareas.find((t) => t.id === id) ?? null);
   }
+  modo: ModoOperacion = 'plataforma_completa';
+  tieneApi = false;
   cooperativasYCargoDeCompra() {
-    return Promise.resolve({ cooperativaIds: [COOP], cargoPlataforma: this.cargo });
+    return Promise.resolve({
+      cooperativas: [{ id: COOP, modo: this.modo, tieneIntegracionApi: this.tieneApi }],
+      cargoPlataforma: this.cargo,
+    });
   }
   contextoVenta(): Promise<ContextoVentaCooperativa> {
     return Promise.resolve({
@@ -289,6 +295,76 @@ describe('PostpagoService', () => {
   it('no se puede reintentar una tarea que no está agotada', async () => {
     await servicio.programarYProcesar(COMPRA);
     expect(await servicio.reintentar(repo.de('registro_tasa').id, 'admin-1')).toBe(false);
+  });
+
+  describe('cooperativa con su propio sistema (intermediario con cobro)', () => {
+    const reporte = {
+      numeroFactura: '000000456',
+      claveAcceso: '1'.repeat(49),
+      numeroAutorizacion: '1'.repeat(49),
+      codigoTasa: '98765432109876543210',
+    };
+
+    beforeEach(() => {
+      repo.modo = 'intermediario_con_cobro';
+      repo.tieneApi = true;
+    });
+
+    it('Klumbus no factura ni registra la tasa: espera el reporte de la cooperativa y factura solo su cargo', async () => {
+      await servicio.programarYProcesar(COMPRA);
+
+      expect(repo.tareas.map((t) => t.tipo).sort()).toEqual(['confirmacion_cooperativa', 'factura_plataforma']);
+      expect(facturar).toHaveBeenCalledTimes(1); // solo el cargo de Klumbus
+      expect(registrar).not.toHaveBeenCalled();
+      expect(repo.de('confirmacion_cooperativa').estado).toBe('pendiente');
+      expect(repo.estadoCompra).toBe('boleto_confirmado');
+    });
+
+    it('al reportar la cooperativa su factura y tasa, la compra queda completada', async () => {
+      await servicio.programarYProcesar(COMPRA);
+
+      expect(await servicio.confirmarDesdeCooperativa(COMPRA, COOP, reporte)).toBe('ok');
+
+      expect(repo.de('confirmacion_cooperativa').estado).toBe('exitosa');
+      expect(repo.comprobantesCoop).toBe(1);
+      expect(repo.tasaGuardada).toEqual([{ exitoso: true, codigoTasa: '98765432109876543210' }]);
+      expect(repo.estadoCompra).toBe('completada');
+    });
+
+    it('reportar dos veces es inofensivo', async () => {
+      await servicio.programarYProcesar(COMPRA);
+      await servicio.confirmarDesdeCooperativa(COMPRA, COOP, reporte);
+      expect(await servicio.confirmarDesdeCooperativa(COMPRA, COOP, reporte)).toBe('ok');
+      expect(repo.comprobantesCoop).toBe(1);
+    });
+
+    it('otra cooperativa, o una compra sin esa tarea, no puede reportar', async () => {
+      await servicio.programarYProcesar(COMPRA);
+      expect(await servicio.confirmarDesdeCooperativa(COMPRA, 'otra-coop', reporte)).toBe('sin_tarea');
+      expect(await servicio.confirmarDesdeCooperativa('otra-compra', COOP, reporte)).toBe('sin_tarea');
+      expect(repo.estadoCompra).toBe('boleto_confirmado');
+    });
+
+    it('si la cooperativa no reporta a tiempo, queda para revisión, y un reporte tardío igual se acepta', async () => {
+      await servicio.programarYProcesar(COMPRA);
+      const tarea = repo.de('confirmacion_cooperativa');
+      tarea.creadoEn = new Date(Date.now() - 31 * 60_000).toISOString();
+      repo.vencerEsperas();
+
+      await servicio.procesarCompra(COMPRA);
+      expect(repo.de('confirmacion_cooperativa').estado).toBe('agotada');
+      expect(auditar).toHaveBeenCalledWith(expect.objectContaining({ accion: 'postpago_tarea_agotada' }));
+
+      expect(await servicio.confirmarDesdeCooperativa(COMPRA, COOP, reporte)).toBe('ok');
+      expect(repo.de('confirmacion_cooperativa').estado).toBe('exitosa');
+      expect(repo.estadoCompra).toBe('completada');
+    });
+
+    it('sin llave API, la cooperativa factura por su cuenta y no se le espera nada', async () => {
+      repo.tieneApi = false;
+      await servicio.programarYProcesar(COMPRA);
+      expect(repo.tareas.map((t) => t.tipo)).toEqual(['factura_plataforma']);
+    });
   });
 
   it('nunca lanza aunque falle la base de datos', async () => {

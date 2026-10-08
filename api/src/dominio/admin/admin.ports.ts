@@ -396,6 +396,16 @@ export interface AdminRepositorio {
     motivo?: string,
   ): Promise<{ ok: true } | { ok: false; motivo: string }>;
 
+  /**
+   * Modo de operación (07-oct-2026): qué hace Klumbus por la cooperativa.
+   * Deja registro en auditoría con el valor anterior y el nuevo.
+   */
+  cambiarModoOperacionCooperativa(
+    id: string,
+    modo: 'plataforma_completa' | 'intermediario_con_cobro' | 'intermediario_venta',
+    usuarioId: string,
+  ): Promise<{ ok: true } | { ok: false; motivo: string }>;
+
   /** RF-017 -- filas crudas por boleto, ya acotadas por los filtros SQL. */
   conciliacion(
     filtros: FiltrosConciliacionSql,

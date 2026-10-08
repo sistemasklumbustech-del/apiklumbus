@@ -3,16 +3,20 @@ import {
   Body,
   Controller,
   Get,
+  NotFoundException,
   Param,
+  ParseUUIDPipe,
   Patch,
+  Post,
   Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
 import { IsNumber, Max, Min } from 'class-validator';
 import { ApiExternaService } from '../../aplicacion/api-externa/api-externa.service';
+import { PostpagoService } from '../../aplicacion/postpago/postpago.service';
 import { ApiKeyGuard } from './guards/api-key.guard';
-import { ActualizarPrecioViajeDto } from './dto/api-externa.dto';
+import { ActualizarPrecioViajeDto, ConfirmarVentaDto } from './dto/api-externa.dto';
 
 /** Ítem 16 (05-ago-2026) -- rangos válidos reales de latitud/longitud. */
 class ActualizarUbicacionViajeDto {
@@ -41,7 +45,30 @@ interface PeticionConCooperativa {
 @UseGuards(ApiKeyGuard)
 @Controller('api-externa')
 export class ApiExternaController {
-  constructor(private readonly service: ApiExternaService) {}
+  constructor(
+    private readonly service: ApiExternaService,
+    private readonly postpago: PostpagoService,
+  ) {}
+
+  /**
+   * CONFIRMACIÓN DE VENTA (07-oct-2026) -- el sistema de la cooperativa, que
+   * es quien factura y registra la tasa en el SIAT 3000, reporta el resultado
+   * de una compra que le avisamos por webhook (`venta_creada`). Se espera
+   * dentro de 30 minutos; después la venta pasa a revisión manual, aunque el
+   * reporte tardío igual se acepta. Es idempotente: repetirlo no duplica nada.
+   */
+  @Post('compras/:compraId/confirmacion')
+  async confirmarVenta(
+    @Param('compraId', ParseUUIDPipe) compraId: string,
+    @Body() dto: ConfirmarVentaDto,
+    @Request() req: PeticionConCooperativa,
+  ) {
+    const resultado = await this.postpago.confirmarDesdeCooperativa(compraId, req.cooperativaId, dto);
+    if (resultado === 'sin_tarea') {
+      throw new NotFoundException('No hay una venta de tu cooperativa pendiente de confirmar con ese identificador.');
+    }
+    return { ok: true };
+  }
 
   /**
    * RECEPCIÓN -- la cooperativa reporta un cambio de precio en uno de

@@ -335,8 +335,26 @@ describe('Checkout y pago (e2e)', () => {
   });
 
   describe('Orquestador posterior al pago (06-oct-2026)', () => {
-    beforeAll(() => {
+    let cooperativaId: string;
+
+    async function consultar<T = Record<string, unknown>>(consulta: string, valores: unknown[] = []): Promise<T[]> {
+      const pg = new Client({ connectionString: process.env.DATABASE_URL_PUBLICO });
+      await pg.connect();
+      try {
+        return (await pg.query(consulta, valores)).rows as T[];
+      } finally {
+        await pg.end();
+      }
+    }
+
+    beforeAll(async () => {
       process.env.ORQUESTADOR_POSTPAGO = '1';
+      const fila = await consultar<{ id: string }>('SELECT id FROM cooperativas WHERE nombre_comercial = $1', [
+        `Coop Checkout ${sufijo}`,
+      ]);
+      cooperativaId = fila[0].id;
+      // Este primer grupo prueba el modo en que Klumbus lo hace todo.
+      await consultar("UPDATE cooperativas SET modo_operacion = 'plataforma_completa' WHERE id = $1", [cooperativaId]);
     });
     afterAll(() => {
       delete process.env.ORQUESTADOR_POSTPAGO;
@@ -413,6 +431,116 @@ describe('Checkout y pago (e2e)', () => {
         .post(`/admin/postpago/tareas/${lista.body.filas[0].id}/reintentar`)
         .set('Authorization', `Bearer ${tokenAdmin}`)
         .expect(404);
+    });
+
+    it('el admin cambia el modo de operación con auditoría, y "intermediario de venta" aún no se acepta', async () => {
+      const url = `/admin/cooperativas/${cooperativaId}/modo-operacion`;
+      await request(app.getHttpServer())
+        .patch(url)
+        .set('Authorization', `Bearer ${tokenAdmin}`)
+        .send({ modoOperacion: 'intermediario_venta' })
+        .expect(400);
+      await request(app.getHttpServer())
+        .patch(url)
+        .set('Authorization', `Bearer ${tokenAdmin}`)
+        .send({ modoOperacion: 'plataforma_completa' })
+        .expect(400); // ya estaba en ese modo
+      await request(app.getHttpServer())
+        .patch(url)
+        .set('Authorization', `Bearer ${tokenAdmin}`)
+        .send({ modoOperacion: 'intermediario_con_cobro' })
+        .expect(200);
+      await request(app.getHttpServer())
+        .patch(url)
+        .set('Authorization', `Bearer ${tokenPasajero}`)
+        .send({ modoOperacion: 'plataforma_completa' })
+        .expect(403);
+
+      const [coop] = await consultar<{ modo_operacion: string }>('SELECT modo_operacion FROM cooperativas WHERE id = $1', [
+        cooperativaId,
+      ]);
+      expect(coop.modo_operacion).toBe('intermediario_con_cobro');
+      const auditoria = await consultar<{ detalle: { antes: string; despues: string } }>(
+        "SELECT detalle FROM auditoria_admin WHERE accion = 'cambio_modo_operacion' AND entidad_id = $1",
+        [cooperativaId],
+      );
+      expect(auditoria).toHaveLength(1);
+      expect(auditoria[0].detalle).toEqual({ antes: 'plataforma_completa', despues: 'intermediario_con_cobro' });
+    });
+
+    it('con su propio sistema, la cooperativa reporta la factura y la tasa por la API externa y la compra se completa', async () => {
+      const credencial = await request(app.getHttpServer())
+        .post('/coop/credenciales-api')
+        .set('Authorization', `Bearer ${tokenCoopRechazo}`)
+        .send({})
+        .expect(201);
+      const llave: string = credencial.body.apiKeyCompleta;
+
+      await bloquearYRegistrarAsiento('5A', tokenPasajero);
+      const res = await request(app.getHttpServer())
+        .post('/compras')
+        .set('Authorization', `Bearer ${tokenPasajero}`)
+        .send({
+          pasajeros: [
+            {
+              viajeId,
+              numeroAsiento: '5A',
+              nombres: 'Pasajero',
+              apellidos: 'Sistema Propio Prueba',
+              tipoDocumento: 'cedula',
+              documento: '1701001370',
+              tipoTarifa: 'adulto',
+            },
+          ],
+        })
+        .expect(201);
+      const idCompra: string = res.body.compraId;
+
+      // Klumbus no factura ni registra la tasa: queda esperando a la cooperativa.
+      const tareas = await consultar<{ tipo: string; estado: string }>(
+        'SELECT tipo, estado FROM tareas_postpago WHERE compra_id = $1',
+        [idCompra],
+      );
+      expect(tareas.map((t) => t.tipo)).toContain('confirmacion_cooperativa');
+      expect(tareas.map((t) => t.tipo)).not.toContain('factura_pasaje');
+      expect(tareas.find((t) => t.tipo === 'confirmacion_cooperativa')?.estado).toBe('pendiente');
+      expect((await consultar<{ estado: string }>('SELECT estado FROM compras WHERE id = $1', [idCompra]))[0].estado).toBe(
+        'boleto_confirmado',
+      );
+
+      const reporte = { numeroFactura: '000000789', codigoTasa: '12345678901234567890' };
+      await request(app.getHttpServer()).post(`/api-externa/compras/${idCompra}/confirmacion`).send(reporte).expect(401);
+      await request(app.getHttpServer())
+        .post(`/api-externa/compras/${idCompra}/confirmacion`)
+        .set('Authorization', `Bearer ${llave}`)
+        .send({ numeroFactura: '12', codigoTasa: '1' })
+        .expect(400);
+      await request(app.getHttpServer())
+        .post('/api-externa/compras/00000000-0000-4000-8000-000000000000/confirmacion')
+        .set('Authorization', `Bearer ${llave}`)
+        .send(reporte)
+        .expect(404);
+      for (let i = 0; i < 2; i++) {
+        // Reportar dos veces es inofensivo.
+        await request(app.getHttpServer())
+          .post(`/api-externa/compras/${idCompra}/confirmacion`)
+          .set('Authorization', `Bearer ${llave}`)
+          .send(reporte)
+          .expect(201);
+      }
+
+      const [compra] = await consultar<{ estado: string }>('SELECT estado FROM compras WHERE id = $1', [idCompra]);
+      const [tasa] = await consultar<{ estado: string; codigo_tasa: string }>(
+        'SELECT estado, codigo_tasa FROM registros_tasa_terminal WHERE compra_id = $1',
+        [idCompra],
+      );
+      const facturas = await consultar('SELECT 1 FROM comprobantes_electronicos WHERE compra_id = $1 AND sujeto_tributario = $2', [
+        idCompra,
+        'cooperativa',
+      ]);
+      expect(tasa).toEqual({ estado: 'exitosa', codigo_tasa: '12345678901234567890' });
+      expect(facturas).toHaveLength(1);
+      expect(compra.estado).toBe('completada');
     });
   });
 

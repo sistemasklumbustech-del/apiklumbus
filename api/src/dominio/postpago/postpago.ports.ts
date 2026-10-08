@@ -9,7 +9,50 @@
  * debe perder la venta ni dejarla a medias sin que nadie lo sepa.
  */
 
-export type TipoTareaPostpago = 'factura_pasaje' | 'registro_tasa' | 'factura_plataforma';
+export type TipoTareaPostpago =
+  | 'factura_pasaje'
+  | 'registro_tasa'
+  | 'factura_plataforma'
+  | 'confirmacion_cooperativa';
+
+/**
+ * Modo de operación de una cooperativa (07-oct-2026): qué hace Klumbus por
+ * ella. Ver la migración 0060.
+ */
+export type ModoOperacion = 'plataforma_completa' | 'intermediario_con_cobro' | 'intermediario_venta';
+
+export interface CapacidadesModo {
+  /** Klumbus emite la factura del pasaje a nombre de la cooperativa. */
+  klumbusFacturaPasaje: boolean;
+  /** Klumbus registra la venta en el SIAT 3000 con las credenciales de la cooperativa. */
+  klumbusRegistraTasa: boolean;
+  /** El sistema de la cooperativa factura y registra la tasa, y debe reportarlo a Klumbus. */
+  cooperativaReporta: boolean;
+  /** Klumbus cobra al pasajero y liquida a la cooperativa. */
+  klumbusCobraEnLinea: boolean;
+}
+
+export function capacidadesDeModo(modo: ModoOperacion): CapacidadesModo {
+  switch (modo) {
+    case 'plataforma_completa':
+      return { klumbusFacturaPasaje: true, klumbusRegistraTasa: true, cooperativaReporta: false, klumbusCobraEnLinea: true };
+    case 'intermediario_con_cobro':
+      return { klumbusFacturaPasaje: false, klumbusRegistraTasa: false, cooperativaReporta: true, klumbusCobraEnLinea: true };
+    case 'intermediario_venta':
+      return { klumbusFacturaPasaje: false, klumbusRegistraTasa: false, cooperativaReporta: true, klumbusCobraEnLinea: false };
+  }
+}
+
+/** Una cooperativa que participa en una compra, con lo necesario para decidir qué tareas le tocan. */
+export interface CooperativaDeCompra {
+  id: string;
+  modo: ModoOperacion;
+  /** Tiene una llave API activa: su sistema puede reportar la factura y la tasa. */
+  tieneIntegracionApi: boolean;
+}
+
+/** Minutos que se espera a que el sistema de la cooperativa reporte la factura y la tasa antes de pasar a revisión. */
+export const MINUTOS_ESPERA_CONFIRMACION_COOPERATIVA = 30;
 export type EstadoTareaPostpago = 'pendiente' | 'en_proceso' | 'exitosa' | 'agotada';
 
 export interface TareaPostpago {
@@ -56,15 +99,23 @@ export function calcularProximoIntento(intentosHechos: number, ahora: Date = new
   return new Date(ahora.getTime() + ESPERAS_MINUTOS[indice] * 60_000);
 }
 
-/** Qué tareas hay que crear para una compra, a partir de las cooperativas que la componen. */
+/**
+ * Qué tareas hay que crear para una compra, según el modo de cada cooperativa.
+ * Una cooperativa que debería reportar pero no tiene integración API sigue
+ * facturando por su cuenta, como hasta ahora: no se le espera nada.
+ */
 export function tareasParaCompra(
-  cooperativaIds: string[],
+  cooperativas: CooperativaDeCompra[],
   cargoPlataforma: number,
 ): { tipo: TipoTareaPostpago; cooperativaId: string | null }[] {
   const tareas: { tipo: TipoTareaPostpago; cooperativaId: string | null }[] = [];
-  for (const cooperativaId of cooperativaIds) {
-    tareas.push({ tipo: 'factura_pasaje', cooperativaId });
-    tareas.push({ tipo: 'registro_tasa', cooperativaId });
+  for (const c of cooperativas) {
+    const cap = capacidadesDeModo(c.modo);
+    if (cap.klumbusFacturaPasaje) tareas.push({ tipo: 'factura_pasaje', cooperativaId: c.id });
+    if (cap.klumbusRegistraTasa) tareas.push({ tipo: 'registro_tasa', cooperativaId: c.id });
+    if (cap.cooperativaReporta && c.tieneIntegracionApi) {
+      tareas.push({ tipo: 'confirmacion_cooperativa', cooperativaId: c.id });
+    }
   }
   if (cargoPlataforma > 0) tareas.push({ tipo: 'factura_plataforma', cooperativaId: null });
   return tareas;
@@ -75,7 +126,7 @@ export function estadoCompraSegunTareas(
   tareas: Pick<TareaPostpago, 'tipo' | 'estado'>[],
 ): 'tasa_confirmada' | 'completada' | null {
   if (tareas.length === 0) return null;
-  const tasas = tareas.filter((t) => t.tipo === 'registro_tasa');
+  const tasas = tareas.filter((t) => t.tipo === 'registro_tasa' || t.tipo === 'confirmacion_cooperativa');
   const tasasListas = tasas.length > 0 && tasas.every((t) => t.estado === 'exitosa');
   if (tareas.every((t) => t.estado === 'exitosa')) return 'completada';
   if (tasasListas) return 'tasa_confirmada';
@@ -135,7 +186,9 @@ export interface TareasPostpagoRepositorio {
   listar(filtros: FiltrosTareasPostpago): Promise<{ filas: TareaPostpago[]; total: number }>;
   obtener(id: string): Promise<TareaPostpago | null>;
 
-  cooperativasYCargoDeCompra(compraId: string): Promise<{ cooperativaIds: string[]; cargoPlataforma: number }>;
+  cooperativasYCargoDeCompra(
+    compraId: string,
+  ): Promise<{ cooperativas: CooperativaDeCompra[]; cargoPlataforma: number }>;
   contextoVenta(compraId: string, cooperativaId: string): Promise<ContextoVentaCooperativa | null>;
   /** Registra el resultado de la tasa en el registro local que se crea al confirmar el pago. */
   guardarResultadoTasa(

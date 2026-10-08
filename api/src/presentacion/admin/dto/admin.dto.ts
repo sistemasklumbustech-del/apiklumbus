@@ -61,6 +61,12 @@ export class CambiarEstadoCooperativaDto {
   motivo?: string;
 }
 
+/** Modo de operación (07-oct-2026) -- qué hace Klumbus por la cooperativa. */
+export class CambiarModoOperacionDto {
+  @IsIn(['plataforma_completa', 'intermediario_con_cobro', 'intermediario_venta'])
+  modoOperacion!: 'plataforma_completa' | 'intermediario_con_cobro' | 'intermediario_venta';
+}
+
 export class CrearCooperativaDto {
   @ValidateNested()
   @Type(() => DatosCooperativaDto)

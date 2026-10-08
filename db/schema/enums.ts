@@ -25,6 +25,16 @@ export const rolUsuarioEnum = pgEnum('rol_usuario', [
  */
 export const modeloIntegracionEnum = pgEnum('modelo_integracion', ['modelo_a', 'modelo_b']);
 
+/**
+ * Modo de operación (07-oct-2026) -- qué hace Klumbus por cada cooperativa.
+ * Ver la migración 0060 para el detalle de cada valor.
+ */
+export const modoOperacionEnum = pgEnum('modo_operacion', [
+  'plataforma_completa',
+  'intermediario_con_cobro',
+  'intermediario_venta',
+]);
+
 /** RF-COOP-001 — una afiliación pasa por revisión antes de operar. */
 export const estadoCooperativaEnum = pgEnum('estado_cooperativa', [
   'pendiente_revision',
@@ -174,6 +184,8 @@ export const accionAuditoriaEnum = pgEnum('accion_auditoria', [
   // 06-oct-2026 -- tareas posteriores al pago (factura, tasa del terminal): una quedó para revisión manual, o un admin la reintentó.
   'postpago_tarea_agotada',
   'postpago_tarea_reintentada',
+  // 07-oct-2026 -- un admin cambió el modo de operación de una cooperativa.
+  'cambio_modo_operacion',
 ]);
 
 /** RF-COMM-002 — planes comerciales diferenciados. */

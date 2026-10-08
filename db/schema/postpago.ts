@@ -13,6 +13,8 @@ export const tipoTareaPostpagoEnum = pgEnum('tipo_tarea_postpago', [
   'factura_pasaje',
   'registro_tasa',
   'factura_plataforma',
+  // El sistema de la cooperativa debe reportar la factura y el código de tasa de la venta.
+  'confirmacion_cooperativa',
 ]);
 
 export const estadoTareaPostpagoEnum = pgEnum('estado_tarea_postpago', [

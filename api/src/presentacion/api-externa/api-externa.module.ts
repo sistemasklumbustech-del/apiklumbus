@@ -7,8 +7,10 @@ import {
 import { ApiExternaRepositorioDrizzle } from '../../infraestructura/api-externa/api-externa.repositorio.drizzle';
 import { ApiKeyGuard } from './guards/api-key.guard';
 import { BcryptHasher } from '../../infraestructura/auth/bcrypt.hasher';
+import { VentasModule } from '../ventas/ventas.module';
 
 @Module({
+  imports: [VentasModule],
   controllers: [ApiExternaController],
   providers: [
     ApiExternaService,
