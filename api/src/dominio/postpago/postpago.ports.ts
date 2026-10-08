@@ -161,9 +161,29 @@ export interface ContextoVentaCooperativa {
 
 export interface FiltrosTareasPostpago {
   estado?: EstadoTareaPostpago;
+  /** Varios estados a la vez (por ejemplo, todo lo que aún espera confirmación). */
+  estados?: EstadoTareaPostpago[];
+  tipo?: TipoTareaPostpago;
+  cooperativaId?: string;
   compraId?: string;
   pagina: number;
   limite: number;
+}
+
+/** Un pasajero de una venta, con lo que el personal de la cooperativa necesita para encontrarla en su sistema. */
+export interface PasajeroDetalleVenta {
+  nombres: string;
+  apellidos: string;
+  documento: string;
+  asientoEtiqueta: string;
+  tipoTarifa: PasajeroVenta['tipoTarifa'];
+  precioPagado: number;
+  tasaTerminal: number;
+  /** Identificador del viaje en el sistema de la cooperativa, si lo publicó por la API. */
+  viajeReferencia: string | null;
+  origenCiudad: string;
+  destinoCiudad: string;
+  horaSalidaProgramada: string;
 }
 
 export interface TareasPostpagoRepositorio {
@@ -190,6 +210,7 @@ export interface TareasPostpagoRepositorio {
     compraId: string,
   ): Promise<{ cooperativas: CooperativaDeCompra[]; cargoPlataforma: number }>;
   contextoVenta(compraId: string, cooperativaId: string): Promise<ContextoVentaCooperativa | null>;
+  detallePasajerosVenta(compraId: string, cooperativaId: string): Promise<PasajeroDetalleVenta[]>;
   /** Registra el resultado de la tasa en el registro local que se crea al confirmar el pago. */
   guardarResultadoTasa(
     compraId: string,

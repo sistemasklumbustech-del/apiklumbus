@@ -15,12 +15,29 @@ import {
   calcularProximoIntento,
   estadoCompraSegunTareas,
   tareasParaCompra,
+  type ClienteFactura,
   type ContextoVentaCooperativa,
   type FiltrosTareasPostpago,
+  type PasajeroDetalleVenta,
   type TareaPostpago,
   type TareasPostpagoRepositorio,
 } from '../../dominio/postpago/postpago.ports';
 import { AuditoriaRegistrador } from '../../infraestructura/auditoria/auditoria.registrador';
+
+/** Una venta vista desde el panel de la cooperativa. */
+export interface VentaDeCooperativa {
+  compraId: string;
+  creadoEn: string;
+  completadoEn: string | null;
+  /** Pasó el plazo de espera sin que se reportara la factura y la tasa. */
+  vencida: boolean;
+  confirmada: boolean;
+  cliente: ClienteFactura | null;
+  pasajeros: PasajeroDetalleVenta[];
+  totalAFacturar: number;
+  numeroFactura: string | null;
+  codigoTasa: string | null;
+}
 
 type Resultado =
   | { tipo: 'ok'; resultado: Record<string, unknown> }
@@ -122,6 +139,46 @@ export class PostpagoService {
 
   listar(filtros: FiltrosTareasPostpago) {
     return this.repo.listar(filtros);
+  }
+
+  /**
+   * Ventas de una cooperativa que esperan (o ya recibieron) la factura y la tasa
+   * que reporta su sistema, con lo necesario para encontrarlas y facturarlas:
+   * a quién se factura, qué pasajeros y en qué viaje. Es lo que ve el panel de la cooperativa.
+   */
+  async listarVentasDeCooperativa(
+    cooperativaId: string,
+    vista: 'por_confirmar' | 'confirmadas',
+    pagina: number,
+    limite: number,
+  ): Promise<{ filas: VentaDeCooperativa[]; total: number; pagina: number; limite: number }> {
+    const { filas, total } = await this.repo.listar({
+      cooperativaId,
+      tipo: 'confirmacion_cooperativa',
+      estados: vista === 'confirmadas' ? ['exitosa'] : ['pendiente', 'en_proceso', 'agotada'],
+      pagina,
+      limite,
+    });
+    const ventas: VentaDeCooperativa[] = [];
+    for (const tarea of filas) {
+      const ctx = await this.repo.contextoVenta(tarea.compraId, cooperativaId);
+      const pasajeros = await this.repo.detallePasajerosVenta(tarea.compraId, cooperativaId);
+      const minutos = (Date.now() - new Date(tarea.creadoEn).getTime()) / 60_000;
+      const resultado = (tarea.resultado ?? {}) as { numeroFactura?: string; codigoTasa?: string };
+      ventas.push({
+        compraId: tarea.compraId,
+        creadoEn: tarea.creadoEn,
+        completadoEn: tarea.completadoEn,
+        vencida: tarea.estado !== 'exitosa' && minutos >= MINUTOS_ESPERA_CONFIRMACION_COOPERATIVA,
+        confirmada: tarea.estado === 'exitosa',
+        cliente: ctx?.cliente ?? null,
+        pasajeros,
+        totalAFacturar: this.redondear(pasajeros.reduce((a, p) => a + p.precioPagado + p.tasaTerminal, 0)),
+        numeroFactura: resultado.numeroFactura ?? null,
+        codigoTasa: resultado.codigoTasa ?? null,
+      });
+    }
+    return { filas: ventas, total, pagina, limite };
   }
 
   /**
@@ -264,6 +321,8 @@ export class PostpagoService {
       urlFactura?: string;
       codigoTasa: string;
     },
+    /** Si la confirmación la cargó una persona desde el panel y no el sistema de la cooperativa. */
+    usuarioId?: string,
   ): Promise<'ok' | 'sin_tarea'> {
     const tareas = await this.repo.tareasDeCompra(compraId);
     const tarea = tareas.find((t) => t.tipo === 'confirmacion_cooperativa' && t.cooperativaId === cooperativaId);
@@ -290,6 +349,15 @@ export class PostpagoService {
     });
     await this.repo.marcarExitosa(tarea.id, { numeroFactura: datos.numeroFactura, codigoTasa: datos.codigoTasa, monto });
     await this.actualizarEstadoCompra(compraId);
+    if (usuarioId) {
+      await this.auditoria.registrar({
+        accion: 'postpago_confirmacion_manual',
+        usuarioId,
+        entidadTipo: 'tarea_postpago',
+        entidadId: tarea.id,
+        detalle: { compraId, cooperativaId, numeroFactura: datos.numeroFactura, codigoTasa: datos.codigoTasa },
+      });
+    }
     return 'ok';
   }
 

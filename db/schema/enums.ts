@@ -186,6 +186,8 @@ export const accionAuditoriaEnum = pgEnum('accion_auditoria', [
   'postpago_tarea_reintentada',
   // 07-oct-2026 -- un admin cambió el modo de operación de una cooperativa.
   'cambio_modo_operacion',
+  // 07-oct-2026 -- una cooperativa cargó a mano la factura y la tasa de una venta desde su panel.
+  'postpago_confirmacion_manual',
 ]);
 
 /** RF-COMM-002 — planes comerciales diferenciados. */

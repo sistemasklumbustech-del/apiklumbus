@@ -6,7 +6,9 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  NotFoundException,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -69,6 +71,9 @@ import {
   ActualizarWebhookCredencialApiDto,
   ConsultarCredencialesApiDto,
 } from './dto/credenciales-api.dto';
+import { ConsultarVentasPorConfirmarDto } from './dto/ventas-por-confirmar.dto';
+import { ConfirmarVentaDto } from '../api-externa/dto/api-externa.dto';
+import { PostpagoService } from '../../aplicacion/postpago/postpago.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard, Roles } from '../auth/guards/roles.guard';
 import { PayloadToken } from '../../dominio/auth/auth.ports';
@@ -95,6 +100,7 @@ export class PanelEmpresaController {
     private readonly panel: PanelEmpresaService,
     private readonly checkout: CheckoutService,
     private readonly liquidaciones: LiquidacionesService,
+    private readonly postpago: PostpagoService,
   ) {}
 
   @Roles('admin_cooperativa')
@@ -794,6 +800,45 @@ export class PanelEmpresaController {
     @Request() req: { user: PayloadToken },
   ) {
     return this.panel.rotarCredencialApi(cooperativaDelToken(req.user), id);
+  }
+
+  /**
+   * Ventas en línea de la cooperativa que esperan la factura y el código de tasa
+   * del SIAT 3000 (o ya los recibieron). La cooperativa las ve aquí aunque su
+   * sistema no responda al webhook, y puede cargar el resultado a mano.
+   */
+  @Roles('admin_cooperativa')
+  @Get('ventas-por-confirmar')
+  async listarVentasPorConfirmar(
+    @Request() req: { user: PayloadToken },
+    @Query() dto: ConsultarVentasPorConfirmarDto,
+  ) {
+    return this.postpago.listarVentasDeCooperativa(
+      cooperativaDelToken(req.user),
+      dto.vista ?? 'por_confirmar',
+      dto.pagina ?? 1,
+      dto.limite ?? 25,
+    );
+  }
+
+  /** Mismo reporte que hace el sistema de la cooperativa por la API, cargado por una persona desde el panel. */
+  @Roles('admin_cooperativa')
+  @Post('ventas-por-confirmar/:compraId/confirmacion')
+  async confirmarVentaManual(
+    @Param('compraId', ParseUUIDPipe) compraId: string,
+    @Body() dto: ConfirmarVentaDto,
+    @Request() req: { user: PayloadToken },
+  ) {
+    const resultado = await this.postpago.confirmarDesdeCooperativa(
+      compraId,
+      cooperativaDelToken(req.user),
+      dto,
+      req.user.sub,
+    );
+    if (resultado === 'sin_tarea') {
+      throw new NotFoundException('No hay una venta de tu cooperativa pendiente de confirmar con ese identificador.');
+    }
+    return { ok: true };
   }
 
   /** Genera un secreto de firma de webhooks nuevo (el anterior deja de servir) y lo muestra una sola vez. */

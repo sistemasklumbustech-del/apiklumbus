@@ -3,6 +3,8 @@ import {
   ErrorProveedorSinEfecto,
   type ModoOperacion,
   type ContextoVentaCooperativa,
+  type FiltrosTareasPostpago,
+  type PasajeroDetalleVenta,
   type TareaPostpago,
   type TareasPostpagoRepositorio,
 } from '../../dominio/postpago/postpago.ports';
@@ -89,8 +91,21 @@ class RepoEnMemoria implements TareasPostpagoRepositorio {
     Object.assign(t, { estado: 'pendiente', intentos: 0, ultimoError: null, proximoIntentoEn: new Date(0).toISOString() });
     return Promise.resolve(true);
   }
-  listar() {
-    return Promise.resolve({ filas: this.tareas, total: this.tareas.length });
+  listar(filtros: FiltrosTareasPostpago) {
+    const filas = this.tareas.filter(
+      (t) =>
+        (!filtros.cooperativaId || t.cooperativaId === filtros.cooperativaId) &&
+        (!filtros.tipo || t.tipo === filtros.tipo) &&
+        (!filtros.estados || filtros.estados.includes(t.estado)),
+    );
+    return Promise.resolve({ filas, total: filas.length });
+  }
+  detallePasajerosVenta(): Promise<PasajeroDetalleVenta[]> {
+    const base = { origenCiudad: 'Machala', destinoCiudad: 'Guayaquil', horaSalidaProgramada: '2026-12-05T13:00:00.000Z', viajeReferencia: 'SIS-1' };
+    return Promise.resolve([
+      { ...base, nombres: 'Ana', apellidos: 'Prueba', documento: '1710034065', asientoEtiqueta: '1A', tipoTarifa: 'adulto', precioPagado: 8, tasaTerminal: 0.5 },
+      { ...base, nombres: 'Luis', apellidos: 'Prueba', documento: '1710034073', asientoEtiqueta: '1B', tipoTarifa: 'nino', precioPagado: 4, tasaTerminal: 0.25 },
+    ]);
   }
   obtener(id: string) {
     return Promise.resolve(this.tareas.find((t) => t.id === id) ?? null);
@@ -358,6 +373,40 @@ describe('PostpagoService', () => {
       expect(await servicio.confirmarDesdeCooperativa(COMPRA, COOP, reporte)).toBe('ok');
       expect(repo.de('confirmacion_cooperativa').estado).toBe('exitosa');
       expect(repo.estadoCompra).toBe('completada');
+    });
+
+    it('el panel lista las ventas por confirmar con quién facturar, los pasajeros y el total, y luego como confirmadas', async () => {
+      await servicio.programarYProcesar(COMPRA);
+
+      const pendientes = await servicio.listarVentasDeCooperativa(COOP, 'por_confirmar', 1, 25);
+      expect(pendientes.total).toBe(1);
+      expect(pendientes.filas[0]).toMatchObject({
+        compraId: COMPRA,
+        confirmada: false,
+        vencida: false,
+        totalAFacturar: 12.75,
+        cliente: { identificacion: '1710034065', razonSocial: 'Ana Prueba' },
+        numeroFactura: null,
+        codigoTasa: null,
+      });
+      expect(pendientes.filas[0].pasajeros.map((p) => p.asientoEtiqueta)).toEqual(['1A', '1B']);
+      expect((await servicio.listarVentasDeCooperativa('otra-coop', 'por_confirmar', 1, 25)).total).toBe(0);
+      expect((await servicio.listarVentasDeCooperativa(COOP, 'confirmadas', 1, 25)).total).toBe(0);
+
+      await servicio.confirmarDesdeCooperativa(COMPRA, COOP, reporte, 'usuario-panel');
+
+      expect((await servicio.listarVentasDeCooperativa(COOP, 'por_confirmar', 1, 25)).total).toBe(0);
+      const confirmadas = await servicio.listarVentasDeCooperativa(COOP, 'confirmadas', 1, 25);
+      expect(confirmadas.filas[0]).toMatchObject({ confirmada: true, numeroFactura: reporte.numeroFactura, codigoTasa: reporte.codigoTasa });
+      // Cargarla a mano desde el panel deja huella; el reporte del sistema de la cooperativa no.
+      expect(auditar).toHaveBeenCalledWith(expect.objectContaining({ accion: 'postpago_confirmacion_manual', usuarioId: 'usuario-panel' }));
+    });
+
+    it('una venta que pasó el plazo sigue en la lista, marcada como vencida', async () => {
+      await servicio.programarYProcesar(COMPRA);
+      repo.de('confirmacion_cooperativa').creadoEn = new Date(Date.now() - 31 * 60_000).toISOString();
+      const lista = await servicio.listarVentasDeCooperativa(COOP, 'por_confirmar', 1, 25);
+      expect(lista.filas[0].vencida).toBe(true);
     });
 
     it('sin llave API, la cooperativa factura por su cuenta y no se le espera nada', async () => {

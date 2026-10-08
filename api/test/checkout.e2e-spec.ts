@@ -728,6 +728,138 @@ describe('Checkout y pago (e2e)', () => {
     });
   });
 
+  describe('Ventas por confirmar en el panel de la cooperativa (07-oct-2026)', () => {
+    let viajeExterno: string;
+    const auth = () => ({ Authorization: `Bearer ${tokenCoopRechazo}` });
+
+    async function consultar<T = Record<string, unknown>>(consulta: string, valores: unknown[] = []): Promise<T[]> {
+      const pg = new Client({ connectionString: process.env.DATABASE_URL_PUBLICO });
+      await pg.connect();
+      try {
+        return (await pg.query(consulta, valores)).rows as T[];
+      } finally {
+        await pg.end();
+      }
+    }
+
+    async function comprarEnViajeExterno(asiento: string): Promise<string> {
+      await request(app.getHttpServer())
+        .post(`/viajes/${viajeExterno}/asientos/${asiento}/bloquear`)
+        .set('Authorization', `Bearer ${tokenPasajero}`)
+        .expect(201);
+      const res = await request(app.getHttpServer())
+        .post('/compras')
+        .set('Authorization', `Bearer ${tokenPasajero}`)
+        .send({
+          pasajeros: [
+            {
+              viajeId: viajeExterno,
+              numeroAsiento: asiento,
+              nombres: 'Pasajero',
+              apellidos: 'Panel Confirmar Prueba',
+              tipoDocumento: 'cedula',
+              documento: '1701001370',
+              tipoTarifa: 'adulto',
+            },
+          ],
+        })
+        .expect(201);
+      return res.body.compraId as string;
+    }
+
+    beforeAll(async () => {
+      process.env.ORQUESTADOR_POSTPAGO = '1';
+      const [viaje] = await consultar<{ id: string }>(`SELECT id FROM viajes WHERE referencia_externa = 'SIS-COOP-0001'`);
+      viajeExterno = viaje.id;
+    });
+    afterAll(() => {
+      delete process.env.ORQUESTADOR_POSTPAGO;
+    });
+
+    let compraA: string;
+
+    it('una venta que espera a la cooperativa aparece con a quién facturar, el pasajero, el viaje y el total', async () => {
+      compraA = await comprarEnViajeExterno('2A');
+
+      const res = await request(app.getHttpServer()).get('/coop/ventas-por-confirmar').set(auth()).expect(200);
+      const venta = res.body.filas.find((f: { compraId: string }) => f.compraId === compraA);
+      expect(venta).toBeDefined();
+      expect(venta).toMatchObject({
+        confirmada: false,
+        vencida: false,
+        numeroFactura: null,
+        cliente: expect.objectContaining({ identificacion: '1701001370' }),
+      });
+      expect(venta.totalAFacturar).toBeGreaterThan(0);
+      expect(venta.pasajeros).toEqual([
+        expect.objectContaining({
+          asientoEtiqueta: '2A',
+          documento: '1701001370',
+          viajeReferencia: 'SIS-COOP-0001',
+          origenCiudad: 'Machala',
+        }),
+      ]);
+
+      await request(app.getHttpServer())
+        .get('/coop/ventas-por-confirmar')
+        .set('Authorization', `Bearer ${tokenPasajero}`)
+        .expect(403);
+    });
+
+    it('la cooperativa carga la factura y la tasa a mano: sale de la lista pendiente y queda auditado', async () => {
+      const url = `/coop/ventas-por-confirmar/${compraA}/confirmacion`;
+      await request(app.getHttpServer()).post(url).set(auth()).send({ numeroFactura: '12', codigoTasa: '1' }).expect(400);
+      await request(app.getHttpServer())
+        .post('/coop/ventas-por-confirmar/00000000-0000-4000-8000-000000000000/confirmacion')
+        .set(auth())
+        .send({ numeroFactura: '000000321', codigoTasa: '12345678901234567890' })
+        .expect(404);
+      await request(app.getHttpServer())
+        .post(url)
+        .set(auth())
+        .send({ numeroFactura: '000000321', codigoTasa: '12345678901234567890' })
+        .expect(201);
+
+      const pendientes = await request(app.getHttpServer()).get('/coop/ventas-por-confirmar').set(auth()).expect(200);
+      expect(pendientes.body.filas.some((f: { compraId: string }) => f.compraId === compraA)).toBe(false);
+
+      const confirmadas = await request(app.getHttpServer())
+        .get('/coop/ventas-por-confirmar?vista=confirmadas')
+        .set(auth())
+        .expect(200);
+      expect(confirmadas.body.filas.find((f: { compraId: string }) => f.compraId === compraA)).toMatchObject({
+        confirmada: true,
+        numeroFactura: '000000321',
+        codigoTasa: '12345678901234567890',
+      });
+
+      const [tasa] = await consultar<{ estado: string; codigo_tasa: string }>(
+        'SELECT estado, codigo_tasa FROM registros_tasa_terminal WHERE compra_id = $1',
+        [compraA],
+      );
+      expect(tasa).toEqual({ estado: 'exitosa', codigo_tasa: '12345678901234567890' });
+      const auditoria = await consultar(
+        `SELECT 1 FROM auditoria_admin WHERE accion = 'postpago_confirmacion_manual' AND detalle->>'compraId' = $1`,
+        [compraA],
+      );
+      expect(auditoria).toHaveLength(1);
+    });
+
+    it('una venta que pasó los 30 minutos sigue en la lista, marcada como vencida', async () => {
+      const compraB = await comprarEnViajeExterno('2B');
+      await consultar(
+        `UPDATE tareas_postpago SET creado_en = now() - interval '31 minutes'
+         WHERE compra_id = $1 AND tipo = 'confirmacion_cooperativa'`,
+        [compraB],
+      );
+      const res = await request(app.getHttpServer()).get('/coop/ventas-por-confirmar').set(auth()).expect(200);
+      expect(res.body.filas.find((f: { compraId: string }) => f.compraId === compraB)).toMatchObject({
+        vencida: true,
+        confirmada: false,
+      });
+    });
+  });
+
   describe('Firma de webhooks (07-oct-2026)', () => {
     interface Recibido {
       cabeceras: IncomingMessage['headers'];

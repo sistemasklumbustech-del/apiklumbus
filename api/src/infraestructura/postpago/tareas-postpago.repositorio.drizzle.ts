@@ -5,6 +5,7 @@ import type { DrizzleDb } from '../database/database.provider';
 import type {
   ClienteFactura,
   ContextoVentaCooperativa,
+  PasajeroDetalleVenta,
   CooperativaDeCompra,
   ModoOperacion,
   EstadoTareaPostpago,
@@ -152,8 +153,21 @@ export class TareasPostpagoRepositorioDrizzle implements TareasPostpagoRepositor
     const estado = filtros.estado ?? null;
     const compraId = filtros.compraId ?? null;
     const offset = (filtros.pagina - 1) * filtros.limite;
-    const where = sql`(${estado}::estado_tarea_postpago IS NULL OR estado = ${estado}::estado_tarea_postpago)
-                      AND (${compraId}::uuid IS NULL OR compra_id = ${compraId}::uuid)`;
+    const condiciones = [
+      sql`(${estado}::estado_tarea_postpago IS NULL OR estado = ${estado}::estado_tarea_postpago)`,
+      sql`(${compraId}::uuid IS NULL OR compra_id = ${compraId}::uuid)`,
+    ];
+    if (filtros.estados && filtros.estados.length > 0) {
+      condiciones.push(
+        sql`estado::text IN (${sql.join(
+          filtros.estados.map((e) => sql`${e}`),
+          sql`, `,
+        )})`,
+      );
+    }
+    if (filtros.tipo) condiciones.push(sql`tipo::text = ${filtros.tipo}`);
+    if (filtros.cooperativaId) condiciones.push(sql`cooperativa_id = ${filtros.cooperativaId}::uuid`);
+    const where = sql.join(condiciones, sql` AND `);
     const total = await this.db.execute(sql`SELECT count(*)::int AS n FROM tareas_postpago WHERE ${where}`);
     const filas = await this.db.execute(sql`
       SELECT * FROM tareas_postpago WHERE ${where}
@@ -312,6 +326,49 @@ export class TareasPostpagoRepositorioDrizzle implements TareasPostpagoRepositor
         tasaTerminal: Number(p.tasa_terminal ?? 0),
       })),
     };
+  }
+
+  async detallePasajerosVenta(compraId: string, cooperativaId: string): Promise<PasajeroDetalleVenta[]> {
+    const r = await this.db.execute(sql`
+      SELECT pc.nombres, pc.apellidos, pc.documento, pc.tipo_tarifa, pc.precio_pagado, pc.tasa_terminal,
+             va.numero_asiento, v.referencia_externa, v.hora_salida_programada,
+             po_o.ciudad AS origen_ciudad, po_d.ciudad AS destino_ciudad
+      FROM pasajeros_compra pc
+      JOIN viaje_asientos va ON va.id = pc.viaje_asiento_id
+      JOIN viajes v ON v.id = va.viaje_id
+      JOIN rutas ru ON ru.id = v.ruta_id
+      JOIN puntos_operacion po_o ON po_o.id = ru.origen_punto_operacion_id
+      JOIN puntos_operacion po_d ON po_d.id = ru.destino_punto_operacion_id
+      WHERE pc.compra_id = ${compraId} AND v.cooperativa_id = ${cooperativaId}
+      ORDER BY pc.id
+    `);
+    return (
+      r.rows as unknown as {
+        nombres: string;
+        apellidos: string;
+        documento: string;
+        tipo_tarifa: PasajeroDetalleVenta['tipoTarifa'];
+        precio_pagado: string | null;
+        tasa_terminal: string | null;
+        numero_asiento: string;
+        referencia_externa: string | null;
+        hora_salida_programada: Date | string;
+        origen_ciudad: string;
+        destino_ciudad: string;
+      }[]
+    ).map((p) => ({
+      nombres: p.nombres,
+      apellidos: p.apellidos,
+      documento: p.documento,
+      asientoEtiqueta: p.numero_asiento,
+      tipoTarifa: p.tipo_tarifa,
+      precioPagado: Number(p.precio_pagado ?? 0),
+      tasaTerminal: Number(p.tasa_terminal ?? 0),
+      viajeReferencia: p.referencia_externa,
+      origenCiudad: p.origen_ciudad,
+      destinoCiudad: p.destino_ciudad,
+      horaSalidaProgramada: new Date(p.hora_salida_programada).toISOString(),
+    }));
   }
 
   async guardarResultadoTasa(
