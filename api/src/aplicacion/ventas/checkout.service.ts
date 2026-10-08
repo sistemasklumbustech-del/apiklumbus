@@ -428,6 +428,8 @@ export class CheckoutService {
         evento: 'venta_creada',
         compraId,
         boletos: boletosDeCoop,
+        // Para que su sistema pueda facturar y registrar la tasa (07-oct-2026).
+        venta: await this.postpago.datosDeVentaParaCooperativa(compraId, coopId),
       });
     }
 
@@ -1422,6 +1424,7 @@ export class CheckoutService {
     await this.webhooks.dispararEventoVenta(cooperativaId, resultado.compraId, {
       evento: 'venta_creada',
       compraId: resultado.compraId,
+      venta: await this.postpago.datosDeVentaParaCooperativa(resultado.compraId, cooperativaId),
     });
 
     await this.enviarBoletosPorCorreo(resultado.compraId);

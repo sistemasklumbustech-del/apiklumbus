@@ -36,7 +36,7 @@ export interface EventoWebhookResumen {
   creadoEn: string;
 }
 
-export interface ApiExternaRepositorio {
+export interface ApiExternaRepositorio extends ApiExternaViajesRepositorio {
   /**
    * Bypass RLS a propósito -- todavía no sabemos a qué cooperativa
    * pertenece la petición, eso es justo lo que este método resuelve.
@@ -74,4 +74,85 @@ export interface ApiExternaRepositorio {
     desde?: string,
     hasta?: string,
   ): Promise<EventoWebhookResumen[]>;
+}
+
+/**
+ * Fase B (07-oct-2026) -- viajes y asientos desde el sistema de la
+ * cooperativa. Klumbus define el contrato; cada cooperativa lo adapta a su
+ * sistema. La cooperativa sigue siendo la dueña de sus datos: Klumbus no
+ * deja que esta vía toque una venta ya hecha en Klumbus.
+ */
+export interface CatalogoCooperativa {
+  rutas: {
+    id: string;
+    nombre: string | null;
+    origen: { id: string; nombre: string; ciudad: string };
+    destino: { id: string; nombre: string; ciudad: string };
+    precioBaseReferencia: number;
+    activa: boolean;
+  }[];
+  unidades: {
+    id: string;
+    placa: string;
+    identificadorOperativo: string;
+    tipoVehiculo: string;
+    capacidadTotal: number;
+    activo: boolean;
+  }[];
+}
+
+export interface DatosViajeExterno {
+  rutaId: string;
+  unidadId: string;
+  fechaSalida: string; // yyyy-MM-dd, hora de Ecuador
+  horaSalidaProgramada: string; // ISO 8601
+  horaLlegadaEstimada?: string;
+  precioBase: number;
+  recargoVip?: number;
+}
+
+export type ResultadoGuardarViaje =
+  | { ok: true; id: string; creado: boolean }
+  | { ok: false; codigo: 'ruta_invalida' | 'unidad_invalida' | 'viaje_no_programado' | 'viaje_con_ventas'; motivo: string };
+
+export type ResultadoAsientoExterno =
+  | { numero: string; resultado: 'ocupado' | 'ya_ocupado' | 'liberado' | 'sin_cambios' }
+  | {
+      numero: string;
+      resultado: 'inexistente' | 'conflicto';
+      motivo: 'asiento_inexistente' | 'vendido_en_klumbus' | 'pago_en_revision' | 'en_proceso_de_compra' | 'no_es_de_la_cooperativa';
+      /** Si el conflicto es un asiento en proceso de compra, cuándo vence ese bloqueo y se puede reintentar. */
+      expiraEn?: string;
+    };
+
+export type EstadoAsientoExterno = 'vendido_klumbus' | 'pago_en_revision' | 'en_compra' | 'ocupado_cooperativa';
+
+export interface AsientosDeViajeExterno {
+  viajeId: string;
+  capacidadTotal: number;
+  /** Números de asiento válidos para la unidad de este viaje. */
+  numerosValidos: string[];
+  /** Solo los asientos que no están libres; el resto está disponible. */
+  noDisponibles: { numero: string; estado: EstadoAsientoExterno; referencia: string | null; expiraEn: string | null }[];
+}
+
+export interface ApiExternaViajesRepositorio {
+  catalogo(cooperativaId: string): Promise<CatalogoCooperativa>;
+  guardarViaje(
+    cooperativaId: string,
+    referenciaExterna: string,
+    datos: DatosViajeExterno,
+  ): Promise<ResultadoGuardarViaje>;
+  /** null si el viaje no existe para esta cooperativa. */
+  asientosDeViaje(cooperativaId: string, viajeId: string): Promise<AsientosDeViajeExterno | null>;
+  ocuparAsientos(
+    cooperativaId: string,
+    viajeId: string,
+    asientos: { numero: string; referencia?: string }[],
+  ): Promise<{ ok: true; resultados: ResultadoAsientoExterno[] } | { ok: false; motivo: string } | null>;
+  liberarAsientos(
+    cooperativaId: string,
+    viajeId: string,
+    numeros: string[],
+  ): Promise<{ ok: true; resultados: ResultadoAsientoExterno[] } | null>;
 }

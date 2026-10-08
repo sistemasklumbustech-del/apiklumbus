@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { ApiExternaRepositorio } from '../../dominio/api-externa/api-externa.ports';
+import type { ApiExternaRepositorio, DatosViajeExterno } from '../../dominio/api-externa/api-externa.ports';
 
 export const API_EXTERNA_REPOSITORIO = 'API_EXTERNA_REPOSITORIO';
 
@@ -28,5 +28,33 @@ export class ApiExternaService {
 
   listarEventosWebhook(cooperativaId: string, desde?: string, hasta?: string) {
     return this.repo.listarEventosWebhook(cooperativaId, desde, hasta);
+  }
+
+  catalogo(cooperativaId: string) {
+    return this.repo.catalogo(cooperativaId);
+  }
+
+  /** La fecha de salida se deriva de la hora, en hora de Ecuador: la cooperativa envía un solo dato, no dos que puedan contradecirse. */
+  guardarViaje(
+    cooperativaId: string,
+    referenciaExterna: string,
+    datos: Omit<DatosViajeExterno, 'fechaSalida'>,
+  ) {
+    const fechaSalida = new Date(datos.horaSalidaProgramada).toLocaleDateString('en-CA', {
+      timeZone: 'America/Guayaquil',
+    });
+    return this.repo.guardarViaje(cooperativaId, referenciaExterna, { ...datos, fechaSalida });
+  }
+
+  asientosDeViaje(cooperativaId: string, viajeId: string) {
+    return this.repo.asientosDeViaje(cooperativaId, viajeId);
+  }
+
+  ocuparAsientos(cooperativaId: string, viajeId: string, asientos: { numero: string; referencia?: string }[]) {
+    return this.repo.ocuparAsientos(cooperativaId, viajeId, asientos);
+  }
+
+  liberarAsientos(cooperativaId: string, viajeId: string, numeros: string[]) {
+    return this.repo.liberarAsientos(cooperativaId, viajeId, numeros);
   }
 }

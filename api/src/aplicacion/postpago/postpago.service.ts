@@ -124,6 +124,27 @@ export class PostpagoService {
     return this.repo.listar(filtros);
   }
 
+  /**
+   * Lo que el sistema de una cooperativa necesita para facturar y registrar la
+   * tasa de una venta (se agrega al webhook `venta_creada`): a quién se factura
+   * y qué pasajeros, con su tarifa y sus valores. Nunca lanza: un fallo aquí no
+   * debe impedir el aviso de la venta.
+   */
+  async datosDeVentaParaCooperativa(compraId: string, cooperativaId: string) {
+    try {
+      const ctx = await this.repo.contextoVenta(compraId, cooperativaId);
+      if (!ctx) return null;
+      return {
+        cliente: ctx.cliente,
+        pasajeros: ctx.pasajeros,
+        totalAFacturar: this.redondear(ctx.pasajeros.reduce((a, p) => a + p.precioPagado + p.tasaTerminal, 0)),
+      };
+    } catch (error) {
+      this.logger.warn(`No se pudieron armar los datos de venta del webhook (${compraId}): ${this.mensaje(error)}`);
+      return null;
+    }
+  }
+
   /** Acción de un administrador: vuelve a dejar lista una tarea agotada y la intenta de inmediato. */
   async reintentar(tareaId: string, usuarioId: string): Promise<boolean> {
     const tarea = await this.repo.obtener(tareaId);

@@ -17,6 +17,7 @@ import {
   pgTable,
   uuid,
   varchar,
+  boolean,
   timestamp,
   uniqueIndex,
   index,
@@ -57,6 +58,11 @@ export const viajeAsientos = pgTable(
     // idempotencyKey) en vez de una cuenta real. Nunca se llenan los 2
     // a la vez -- un hold es de un usuario logueado O de un invitado.
     holdSesionInvitadoId: varchar('hold_sesion_invitado_id', { length: 100 }),
+
+    // 07-oct-2026 -- asiento que la cooperativa vendió por su cuenta y reportó
+    // por la API externa (migración 0062). Solo la cooperativa puede liberarlo.
+    ocupadoPorCooperativa: boolean('ocupado_por_cooperativa').default(false).notNull(),
+    referenciaExterna: varchar('referencia_externa', { length: 100 }),
 
     actualizadoEn: timestamp('actualizado_en', { withTimezone: true }).defaultNow().notNull(),
   },

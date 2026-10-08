@@ -19,6 +19,7 @@ import {
   date,
   jsonb,
   index,
+  uniqueIndex,
   pgPolicy,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
@@ -180,6 +181,10 @@ export const viajes = pgTable(
 
     estado: estadoViajeEnum('estado').default('programado').notNull(),
 
+    // 07-oct-2026 -- identificador del viaje en el sistema propio de la
+    // cooperativa (migración 0062). Único por cooperativa.
+    referenciaExterna: varchar('referencia_externa', { length: 100 }),
+
     // Ítem 16, Fase 2 (05-ago-2026) -- seguimiento GPS en vivo. Última
     // posición conocida, NO un historial de todo el trayecto -- el
     // requerimiento siempre fue "dónde está el bus ahora", cada ping
@@ -200,6 +205,9 @@ export const viajes = pgTable(
     // hora; este índice sirve directamente a ese patrón de consulta.
     index('idx_viajes_fecha_hora').on(t.fechaSalida, t.horaSalidaProgramada),
     index('idx_viajes_unidad').on(t.unidadId),
+    uniqueIndex('uq_viajes_referencia_externa')
+      .on(t.cooperativaId, t.referenciaExterna)
+      .where(sql`${t.referenciaExterna} IS NOT NULL`),
     pgPolicy('aislamiento_cooperativa_viajes', {
       for: 'all',
       to: [appRole, platformAdminRole],

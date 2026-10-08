@@ -544,6 +544,186 @@ describe('Checkout y pago (e2e)', () => {
     });
   });
 
+  describe('API externa: viajes y asientos desde el sistema de la cooperativa (07-oct-2026)', () => {
+    let llave: string;
+    let rutaId: string;
+    let unidadId: string;
+    let viajeExterno: string;
+    const auth = () => ({ Authorization: `Bearer ${llave}` });
+
+    async function consultar<T = Record<string, unknown>>(consulta: string, valores: unknown[] = []): Promise<T[]> {
+      const pg = new Client({ connectionString: process.env.DATABASE_URL_PUBLICO });
+      await pg.connect();
+      try {
+        return (await pg.query(consulta, valores)).rows as T[];
+      } finally {
+        await pg.end();
+      }
+    }
+
+    beforeAll(async () => {
+      const credencial = await request(app.getHttpServer())
+        .post('/coop/credenciales-api')
+        .set('Authorization', `Bearer ${tokenCoopRechazo}`)
+        .send({ webhookUrl: 'http://127.0.0.1:9/webhook-de-prueba' })
+        .expect(201);
+      llave = credencial.body.apiKeyCompleta;
+    });
+
+    it('el catálogo entrega las rutas y unidades de la cooperativa, y exige llave', async () => {
+      await request(app.getHttpServer()).get('/api-externa/catalogo').expect(401);
+      const res = await request(app.getHttpServer()).get('/api-externa/catalogo').set(auth()).expect(200);
+      expect(res.body.rutas.length).toBeGreaterThanOrEqual(1);
+      expect(res.body.unidades.length).toBeGreaterThanOrEqual(1);
+      expect(res.body.rutas[0]).toEqual(
+        expect.objectContaining({ id: expect.any(String), origen: expect.objectContaining({ ciudad: 'Machala' }) }),
+      );
+      rutaId = res.body.rutas[0].id;
+      unidadId = res.body.unidades[0].id;
+    });
+
+    it('crear un viaje por referencia es idempotente, y rechaza rutas o unidades ajenas', async () => {
+      const cuerpo = { rutaId, unidadId, horaSalidaProgramada: '2026-12-05T08:00:00-05:00', precioBase: 12 };
+      const primera = await request(app.getHttpServer()).put('/api-externa/viajes/SIS-COOP-0001').set(auth()).send(cuerpo).expect(200);
+      expect(primera.body.creado).toBe(true);
+      viajeExterno = primera.body.id;
+
+      const segunda = await request(app.getHttpServer())
+        .put('/api-externa/viajes/SIS-COOP-0001')
+        .set(auth())
+        .send({ ...cuerpo, precioBase: 13 })
+        .expect(200);
+      expect(segunda.body).toEqual({ id: viajeExterno, creado: false });
+
+      const [fila] = await consultar<{ precio_base: string; fecha_salida: Date | string; referencia_externa: string; n: number }>(
+        `SELECT precio_base, to_char(fecha_salida, 'YYYY-MM-DD') AS fecha_salida, referencia_externa,
+                (SELECT count(*)::int FROM viajes WHERE referencia_externa = 'SIS-COOP-0001') AS n
+         FROM viajes WHERE id = $1`,
+        [viajeExterno],
+      );
+      expect(fila.precio_base).toBe('13.00');
+      expect(fila.fecha_salida).toBe('2026-12-05');
+      expect(fila.n).toBe(1);
+
+      const ajena = await request(app.getHttpServer())
+        .put('/api-externa/viajes/SIS-COOP-0002')
+        .set(auth())
+        .send({ ...cuerpo, rutaId: '00000000-0000-4000-8000-000000000000' })
+        .expect(400);
+      expect(ajena.body.codigo).toBe('ruta_invalida');
+      await request(app.getHttpServer())
+        .put('/api-externa/viajes/SIS-COOP-0003')
+        .set(auth())
+        .send({ ...cuerpo, horaSalidaProgramada: 'ayer' })
+        .expect(400);
+    });
+
+    it('la cooperativa ocupa y libera sus asientos, y Klumbus no se los vende a nadie más', async () => {
+      const base = `/api-externa/viajes/${viajeExterno}/asientos`;
+      const inicial = await request(app.getHttpServer()).get(base).set(auth()).expect(200);
+      expect(inicial.body.noDisponibles).toEqual([]);
+      expect(inicial.body.numerosValidos).toEqual(expect.arrayContaining(['1A', '1B']));
+
+      const ocupar = await request(app.getHttpServer())
+        .post(`${base}/ocupados`)
+        .set(auth())
+        .send({ asientos: [{ numero: '1A', referencia: 'TKT-001' }, { numero: '9Z' }] })
+        .expect(200);
+      expect(ocupar.body.resultados).toEqual([
+        { numero: '1A', resultado: 'ocupado' },
+        { numero: '9Z', resultado: 'inexistente', motivo: 'asiento_inexistente' },
+      ]);
+      const repetido = await request(app.getHttpServer())
+        .post(`${base}/ocupados`)
+        .set(auth())
+        .send({ asientos: [{ numero: '1A' }] })
+        .expect(200);
+      expect(repetido.body.resultados[0].resultado).toBe('ya_ocupado');
+
+      // Un pasajero ya no puede tomar el asiento 1A.
+      const intento = await request(app.getHttpServer())
+        .post(`/viajes/${viajeExterno}/asientos/1A/bloquear`)
+        .set('Authorization', `Bearer ${tokenPasajero}`);
+      expect(intento.status).toBeGreaterThanOrEqual(400);
+
+      const listado = await request(app.getHttpServer()).get(base).set(auth()).expect(200);
+      expect(listado.body.noDisponibles).toEqual([
+        { numero: '1A', estado: 'ocupado_cooperativa', referencia: 'TKT-001', expiraEn: null },
+      ]);
+
+      // Un asiento en plena compra no se le arrebata al pasajero.
+      await request(app.getHttpServer())
+        .post(`/viajes/${viajeExterno}/asientos/1B/bloquear`)
+        .set('Authorization', `Bearer ${tokenPasajero}`)
+        .expect(201);
+      const enCompra = await request(app.getHttpServer())
+        .post(`${base}/ocupados`)
+        .set(auth())
+        .send({ asientos: [{ numero: '1B' }] })
+        .expect(200);
+      expect(enCompra.body.resultados[0]).toEqual(
+        expect.objectContaining({ numero: '1B', resultado: 'conflicto', motivo: 'en_proceso_de_compra', expiraEn: expect.any(String) }),
+      );
+      expect(enCompra.body.conflictos).toBe(1);
+
+      // El pasajero termina su compra: ahora es una venta de Klumbus y la cooperativa no puede pisarla ni liberarla.
+      const compra = await request(app.getHttpServer())
+        .post('/compras')
+        .set('Authorization', `Bearer ${tokenPasajero}`)
+        .send({
+          pasajeros: [
+            {
+              viajeId: viajeExterno,
+              numeroAsiento: '1B',
+              nombres: 'Pasajero',
+              apellidos: 'Venta Externa Prueba',
+              tipoDocumento: 'cedula',
+              documento: '1701001370',
+              tipoTarifa: 'adulto',
+            },
+          ],
+        })
+        .expect(201);
+      const vendido = await request(app.getHttpServer())
+        .post(`${base}/ocupados`)
+        .set(auth())
+        .send({ asientos: [{ numero: '1B' }] })
+        .expect(200);
+      expect(vendido.body.resultados[0]).toEqual({ numero: '1B', resultado: 'conflicto', motivo: 'vendido_en_klumbus' });
+
+      const liberar = await request(app.getHttpServer())
+        .post(`${base}/liberar`)
+        .set(auth())
+        .send({ asientos: ['1A', '1B', '2C'] })
+        .expect(200);
+      expect(liberar.body.resultados).toEqual([
+        { numero: '1A', resultado: 'liberado' },
+        { numero: '1B', resultado: 'conflicto', motivo: 'no_es_de_la_cooperativa' },
+        { numero: '2C', resultado: 'sin_cambios' },
+      ]);
+
+      // Con una venta ya hecha, la estructura del viaje no se puede cambiar, pero el precio sí.
+      const cuerpo = { rutaId, unidadId, horaSalidaProgramada: '2026-12-05T08:00:00-05:00', precioBase: 14 };
+      await request(app.getHttpServer())
+        .put('/api-externa/viajes/SIS-COOP-0001')
+        .set(auth())
+        .send({ ...cuerpo, horaSalidaProgramada: '2026-12-05T09:00:00-05:00' })
+        .expect(409);
+      await request(app.getHttpServer()).put('/api-externa/viajes/SIS-COOP-0001').set(auth()).send(cuerpo).expect(200);
+
+      // El aviso de venta trae lo que su sistema necesita para facturar y registrar la tasa.
+      const [evento] = await consultar<{ payload: { venta: { cliente: { identificacion: string; razonSocial: string }; pasajeros: { asientoEtiqueta: string }[]; totalAFacturar: number } } }>(
+        `SELECT payload FROM webhooks_log WHERE compra_id = $1`,
+        [compra.body.compraId],
+      );
+      expect(evento.payload.venta.cliente).toEqual(
+        expect.objectContaining({ tipoIdentificacion: 'cedula', identificacion: '1701001370', razonSocial: 'Pasajero Venta Externa Prueba' }),
+      );
+      expect(evento.payload.venta.pasajeros.map((p) => p.asientoEtiqueta)).toEqual(['1B']);
+      expect(evento.payload.venta.totalAFacturar).toBeGreaterThan(0);
+    });
+  });
+
   it('aplica el 50% de descuento a un pasajero niño, con autorización de viaje (RN-001, RF-CHECK-002 + RF-MENOR, hallazgo cerrado 22-jul-2026)', async () => {
     await bloquearYRegistrarAsiento('1B', tokenPasajero);
 
