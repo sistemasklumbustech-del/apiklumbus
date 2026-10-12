@@ -18,6 +18,7 @@ import {
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
+import { ContrasenaNoComun } from '../../auth/validadores/contrasena-no-comun';
 /**
  * Cooperativas proponen sus propios puntos de operación (13-ago-2026)
  * -- solo oficina_agencia/parada_intermedia, terminal_terrestre sigue
@@ -188,6 +189,7 @@ export class CrearUsuarioStaffDto {
 
   @IsString()
   @MinLength(8)
+  @ContrasenaNoComun()
   password!: string;
 
   @IsString()

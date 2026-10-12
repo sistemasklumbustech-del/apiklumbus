@@ -71,6 +71,11 @@ export class SimuladorAlmacenamiento implements AlmacenamientoArchivos {
     let contenido = buffer;
     let extension = 'webp';
     if (extensionOriginal === 'pdf') {
+      // Un PDF se guarda tal cual, así que se comprueba que de verdad lo sea: no basta con que el
+      // nombre termine en ".pdf" (podría ser una página HTML o un script).
+      if (buffer.subarray(0, 5).toString('latin1') !== '%PDF-') {
+        throw new BadRequestException('El archivo no es un PDF válido.');
+      }
       extension = 'pdf';
     } else {
       try {

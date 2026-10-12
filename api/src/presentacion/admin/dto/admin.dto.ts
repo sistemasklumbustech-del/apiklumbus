@@ -17,6 +17,7 @@ import {
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
+import { ContrasenaNoComun } from '../../auth/validadores/contrasena-no-comun';
 class DatosCooperativaDto {
   @IsString()
   @MinLength(10)
@@ -44,6 +45,7 @@ class DatosPrimerUsuarioDto {
 
   @IsString()
   @MinLength(8)
+  @ContrasenaNoComun()
   password!: string;
 
   @IsString()
@@ -222,6 +224,7 @@ export class CrearAdministradorDto {
 
   @IsString()
   @MinLength(8)
+  @ContrasenaNoComun()
   password!: string;
 
   @IsString()

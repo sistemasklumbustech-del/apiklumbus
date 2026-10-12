@@ -1,5 +1,6 @@
 import { IsBoolean, IsEmail, IsString, MinLength, IsOptional, Matches } from 'class-validator';
 
+import { ContrasenaNoComun } from '../validadores/contrasena-no-comun';
 /**
  * Validación real de registro (29-jul-2026, hallazgo del usuario):
  * antes `nombreCompleto` era un solo campo libre, y `cedula`/`telefono`
@@ -15,6 +16,7 @@ export class RegistroDto {
 
   @IsString()
   @MinLength(8, { message: 'La contraseña debe tener al menos 8 caracteres.' })
+  @ContrasenaNoComun()
   password!: string;
 
   @IsString()

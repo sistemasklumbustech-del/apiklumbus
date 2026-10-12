@@ -3,7 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
-import { SentryModule, SentryGlobalFilter } from '@sentry/nestjs/setup';
+import { SentryModule } from '@sentry/nestjs/setup';
+import { FiltroExcepciones } from './infraestructura/http/filtro-excepciones';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './infraestructura/database/database.module';
@@ -87,7 +88,8 @@ import { TerminosModule } from './presentacion/terminos/terminos.module';
     // este debe seguir siendo el primero).
     {
       provide: APP_FILTER,
-      useClass: SentryGlobalFilter,
+      // Es el filtro de Sentry con una excepción: un dato mal formado responde 400, no 500.
+      useClass: FiltroExcepciones,
     },
     {
       provide: APP_GUARD,
