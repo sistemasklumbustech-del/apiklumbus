@@ -8,6 +8,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'node:path';
 import { AppModule } from './app.module';
 import { almacenContexto } from './infraestructura/auditoria/contexto-solicitud';
+import { aplicarSeguridadHttp } from './infraestructura/seguridad/configuracion-http';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -43,10 +44,10 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
   );
-  // El sitio web (apps/web, Next.js) corre en un puerto distinto al
-  // backend -- sin CORS habilitado, el navegador bloquea esas llamadas
-  // por politica de mismo origen, aunque el backend responda bien.
-  app.enableCors({ origin: true, credentials: true });
+  // Cabeceras de seguridad (Helmet) y CORS. El sitio web corre en otro origen que la API:
+  // sin CORS el navegador bloquea sus llamadas. Antes se aceptaba cualquier origen; ahora solo
+  // el sitio de Klumbus (ver infraestructura/seguridad/configuracion-http.ts).
+  aplicarSeguridadHttp(app);
   // 27-jul-2026 -- sirve la carpeta donde SimuladorAlmacenamiento
   // guarda los archivos reales (fotos de perfil, logos), para que las
   // URLs que devuelve ("/uploads/perfiles/xxx.png") sean visitables de

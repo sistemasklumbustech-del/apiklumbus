@@ -1,0 +1,19 @@
+name: Auditoría de dependencias
+
+# Cada lunes revisa si apareció una vulnerabilidad alta o crítica en lo que corre en
+# producción. Si falla, GitHub avisa por correo. También se puede lanzar a mano.
+on:
+  schedule:
+    - cron: '0 13 * * 1'
+  workflow_dispatch: {}
+
+jobs:
+  auditar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high

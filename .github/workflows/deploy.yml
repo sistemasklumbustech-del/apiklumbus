@@ -10,7 +10,24 @@ on:
   workflow_dispatch: {}
 
 jobs:
+  # Compuerta antes de tocar el servidor (12-oct-2026): si el código no compila, fallan los
+  # tests o hay una vulnerabilidad crítica en lo que corre en producción, no se despliega.
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - name: Vulnerabilidades críticas en dependencias de producción
+        run: npm audit --omit=dev --audit-level=critical
+
   deploy:
+    needs: verificar
     runs-on: ubuntu-latest
     steps:
       - name: Deploy vía SSH
