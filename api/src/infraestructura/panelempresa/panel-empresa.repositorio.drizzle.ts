@@ -12,6 +12,7 @@ import { ejecutarComoCooperativa } from '../database/tenant-transaction';
 import { BcryptHasher } from '../auth/bcrypt.hasher';
 import { CifradorTotpAesGcm } from '../auth/cifrador-totp.aes-gcm';
 import { CONTEXTO_DOCUMENTO_DISCAPACIDAD, descifrarDatoOpcional } from '../seguridad/datos-sensibles';
+import { aUrlVisible } from '../seguridad/archivos-privados';
 import { generarSecretoWebhook } from '../../dominio/webhooks/firma-webhook';
 import type {
   PanelEmpresaRepositorio,
@@ -1196,7 +1197,8 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
             metodoPago: (f.metodo_pago as string | null) ?? null,
             estadoPago: (f.estado_pago as string | null) ?? null,
             referenciaPago: (f.referencia_pago as string | null) ?? null,
-            comprobantePagoUrl: (f.comprobante_pago_url as string | null) ?? null,
+            // Enlace firmado que vence si el comprobante es privado (ver seguridad/archivos-privados.ts).
+            comprobantePagoUrl: aUrlVisible(f.comprobante_pago_url as string | null),
             precioPagado: Number(f.precio_pagado),
             tasaTerminal: Number(f.tasa_terminal),
             cargoPlataforma: Number(f.cargo_plataforma),

@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PasajeroCheckoutDto } from '../../ventas/dto/crear-compra.dto';
+import { REFERENCIA_PRIVADA_VALIDA } from '../../../infraestructura/seguridad/archivos-privados';
 
 /** RF-003 -- desglose real antes de vender, sin crear ninguna compra. */
 export class CotizarVentanillaDto {
@@ -52,9 +53,13 @@ export class VenderEnVentanillaDto {
   @MaxLength(100)
   referenciaTransferencia?: string;
 
-  /** URL ya subida vía POST /coop/ventanilla/comprobante. */
+  /**
+   * Referencia que devolvió POST /coop/ventanilla/comprobante. Solo se aceptan las de nuestro
+   * almacenamiento privado: antes cualquier texto servía, incluso una dirección de otro sitio.
+   */
   @IsOptional()
   @IsString()
   @MaxLength(500)
+  @Matches(REFERENCIA_PRIVADA_VALIDA, { message: 'El comprobante no es válido: súbelo de nuevo.' })
   comprobanteUrl?: string;
 }

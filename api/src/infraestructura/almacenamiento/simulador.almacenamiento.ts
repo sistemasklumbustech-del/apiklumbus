@@ -5,8 +5,10 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
   AlmacenamientoArchivos,
+  ArchivoPrivadoSubido,
   ArchivoSubido,
 } from '../../dominio/auth/auth.ports';
+import { CARPETAS_PRIVADAS, carpetaPrivada, crearReferencia } from '../seguridad/archivos-privados';
 
 // Mismo patron que URL_FRONTEND en resend.notificador.ts -- hardcodeado
 // a proposito, no via env, siguiendo la convencion ya establecida en
@@ -57,19 +59,17 @@ export class SimuladorAlmacenamiento implements AlmacenamientoArchivos {
   private readonly logger = new Logger(SimuladorAlmacenamiento.name);
   private readonly carpetaBase = join(process.cwd(), 'uploads');
 
-  async guardarImagen(
+  /** Valida el archivo y lo deja listo para guardar: imagen reducida a WebP sin metadatos, o PDF verificado. */
+  private async procesar(
     buffer: Buffer,
     nombreOriginal: string,
     carpeta: string,
-  ): Promise<ArchivoSubido> {
-    const carpetaDestino = join(this.carpetaBase, carpeta);
-    await mkdir(carpetaDestino, { recursive: true });
-
+  ): Promise<{ contenido: Buffer; extension: 'webp' | 'pdf' }> {
     const extensionOriginal = (
       nombreOriginal.split('.').pop() || ''
     ).toLowerCase();
     let contenido = buffer;
-    let extension = 'webp';
+    let extension: 'webp' | 'pdf' = 'webp';
     if (extensionOriginal === 'pdf') {
       // Un PDF se guarda tal cual, así que se comprueba que de verdad lo sea: no basta con que el
       // nombre termine en ".pdf" (podría ser una página HTML o un script).
@@ -98,6 +98,18 @@ export class SimuladorAlmacenamiento implements AlmacenamientoArchivos {
         );
       }
     }
+    return { contenido, extension };
+  }
+
+  /** Archivos públicos (fotos de perfil, logos, banners): se sirven desde /uploads. */
+  async guardarImagen(
+    buffer: Buffer,
+    nombreOriginal: string,
+    carpeta: string,
+  ): Promise<ArchivoSubido> {
+    const { contenido, extension } = await this.procesar(buffer, nombreOriginal, carpeta);
+    const carpetaDestino = join(this.carpetaBase, carpeta);
+    await mkdir(carpetaDestino, { recursive: true });
     const nombreArchivo = `${randomUUID()}.${extension}`;
     const rutaCompleta = join(carpetaDestino, nombreArchivo);
 
@@ -107,5 +119,26 @@ export class SimuladorAlmacenamiento implements AlmacenamientoArchivos {
     this.logger.log(`[SIMULADO] Archivo guardado en disco -> ${rutaCompleta}, URL: ${url}`);
 
     return { url, nombreArchivo };
+  }
+
+  /**
+   * Archivos con datos de personas (comprobantes de pago): se guardan FUERA de la carpeta pública
+   * y se devuelve una referencia, no una URL. Ver infraestructura/seguridad/archivos-privados.ts.
+   */
+  async guardarPrivado(
+    buffer: Buffer,
+    nombreOriginal: string,
+    carpeta: (typeof CARPETAS_PRIVADAS)[number],
+  ): Promise<ArchivoPrivadoSubido> {
+    if (!(CARPETAS_PRIVADAS as readonly string[]).includes(carpeta)) {
+      throw new Error(`"${carpeta}" no es una carpeta privada.`);
+    }
+    const { contenido, extension } = await this.procesar(buffer, nombreOriginal, carpeta);
+    const carpetaDestino = join(carpetaPrivada(), carpeta);
+    await mkdir(carpetaDestino, { recursive: true });
+    const nombreArchivo = `${randomUUID()}.${extension}`;
+    await writeFile(join(carpetaDestino, nombreArchivo), contenido);
+    this.logger.log(`Archivo privado guardado (${carpeta}): ${nombreArchivo}`);
+    return { referencia: crearReferencia(carpeta, nombreArchivo), nombreArchivo };
   }
 }

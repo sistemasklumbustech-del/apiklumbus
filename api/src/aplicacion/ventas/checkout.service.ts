@@ -35,6 +35,7 @@ import {
 } from './logo-boleto';
 import { AuditoriaRegistrador } from '../../infraestructura/auditoria/auditoria.registrador';
 import { PostpagoService } from '../postpago/postpago.service';
+import { aUrlVisible } from '../../infraestructura/seguridad/archivos-privados';
 
 export const COMPRA_REPOSITORIO = 'COMPRA_REPOSITORIO';
 export const PASARELA_PAGO = 'PASARELA_PAGO';
@@ -1412,16 +1413,13 @@ export class CheckoutService implements OnModuleInit {
     buffer: Buffer,
     nombreOriginal: string,
   ) {
-    const { url } = await this.almacenamiento.guardarImagen(
-      buffer,
-      nombreOriginal,
-      'comprobantes-pago',
-    );
-    const resultado = await this.compras.adjuntarComprobante(compraId, usuarioId, url);
+    // El comprobante se guarda en la carpeta privada; en la base queda la referencia.
+    const { referencia } = await this.almacenamiento.guardarPrivado(buffer, nombreOriginal, 'comprobantes-pago');
+    const resultado = await this.compras.adjuntarComprobante(compraId, usuarioId, referencia);
     if (!resultado.ok) {
       throw new BadRequestException(resultado.motivo);
     }
-    return { ok: true, comprobanteUrl: url };
+    return { ok: true, comprobanteUrl: aUrlVisible(referencia) };
   }
 
   /**
@@ -1432,12 +1430,10 @@ export class CheckoutService implements OnModuleInit {
    * el vendedor la manda junto con el resto de la venta.
    */
   async subirComprobanteVentanilla(buffer: Buffer, nombreOriginal: string) {
-    const { url } = await this.almacenamiento.guardarImagen(
-      buffer,
-      nombreOriginal,
-      'comprobantes-pago',
-    );
-    return { comprobanteUrl: url };
+    // Se devuelve la referencia estable (no un enlace que vence): el vendedor la manda de vuelta
+    // con la venta y es lo que se guarda.
+    const { referencia } = await this.almacenamiento.guardarPrivado(buffer, nombreOriginal, 'comprobantes-pago');
+    return { comprobanteUrl: referencia };
   }
 
   /**

@@ -37,6 +37,7 @@ import { DRIZZLE_DB_PUBLICO, DRIZZLE_DB } from '../database/database.module';
 import type { DrizzleDb } from '../database/database.provider';
 import { ejecutarComoCooperativa } from '../database/tenant-transaction';
 import { CONTEXTO_DOCUMENTO_DISCAPACIDAD, cifrarDatoOpcional } from '../seguridad/datos-sensibles';
+import { aUrlVisible } from '../seguridad/archivos-privados';
 import { resolverEstadoTasa, tasaDeBoleto } from './tasa-boleto.sql';
 import type {
   CompraRepositorio,
@@ -561,7 +562,8 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
         compraId: f.compra_id,
         proveedor: f.proveedor,
         monto: Number(f.monto),
-        comprobanteUrl: f.comprobante_url,
+        // Si es un archivo privado, se entrega un enlace firmado que vence (ver seguridad/archivos-privados.ts).
+        comprobanteUrl: aUrlVisible(f.comprobante_url),
         compradorNombre: f.comprador_nombre,
         creadoEn: f.creado_en instanceof Date ? f.creado_en.toISOString() : new Date(f.creado_en).toISOString(),
       };
@@ -688,7 +690,8 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
         proveedor: f.proveedor,
         monto: Number(f.monto),
         estado: f.estado,
-        comprobanteUrl: f.comprobante_url,
+        // Si es un archivo privado, se entrega un enlace firmado que vence (ver seguridad/archivos-privados.ts).
+        comprobanteUrl: aUrlVisible(f.comprobante_url),
         referenciaPago: f.referencia_pago,
         compradorNombre: f.comprador_nombre ?? 'Sin nombre registrado',
         // Quién lo gestionó: un admin que lo revisó (pago manual en

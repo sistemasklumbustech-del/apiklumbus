@@ -5,6 +5,15 @@ import type { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { limpiarCooperativasDePrueba } from './helpers/limpieza';
 import { Client } from 'pg';
+import sharp from 'sharp';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+// Los comprobantes se guardan en una carpeta privada: aquí, una temporal de la prueba.
+process.env.ARCHIVOS_PRIVADOS_DIR = mkdtempSync(join(tmpdir(), 'klumbus-privados-'));
+// Una imagen de verdad: el almacenamiento re-codifica y rechaza lo que no se pueda decodificar.
+let imagenPrueba: Buffer;
 
 /**
  * Métodos de pago manuales (29-jul-2026) — hallazgo real de negocio:
@@ -31,6 +40,7 @@ describe('Métodos de pago manuales (e2e)', () => {
   }
 
   beforeAll(async () => {
+    imagenPrueba = await sharp({ create: { width: 16, height: 16, channels: 3, background: '#ffffff' } }).png().toBuffer();
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -229,12 +239,14 @@ describe('Métodos de pago manuales (e2e)', () => {
     const subida = await request(app.getHttpServer())
       .post(`/compras/${compraId}/comprobante`)
       .set('Authorization', `Bearer ${tokenPasajero}`)
-      .attach('comprobante', Buffer.from('contenido de prueba, no es una imagen real'), {
+      .attach('comprobante', imagenPrueba, {
         filename: 'comprobante.jpg',
         contentType: 'image/jpeg',
       })
       .expect(201);
-    expect(subida.body.comprobanteUrl).toContain('/uploads/comprobantes-pago/');
+    // Ya no es una URL pública: es un enlace firmado que vence.
+    expect(subida.body.comprobanteUrl).toContain('/archivos-privados/comprobantes-pago/');
+    expect(subida.body.comprobanteUrl).not.toContain('/uploads/');
 
     // La cooperativa lo ve en su lista de pendientes.
     const pendientes = await request(app.getHttpServer())
@@ -243,7 +255,21 @@ describe('Métodos de pago manuales (e2e)', () => {
       .expect(200);
     const pendiente = pendientes.body.find((p: { compraId: string }) => p.compraId === compraId);
     expect(pendiente).toBeDefined();
-    expect(pendiente.comprobanteUrl).toBe(subida.body.comprobanteUrl);
+    // Lo ve con un enlace firmado (el mismo archivo; la firma puede variar de un segundo a otro).
+    expect(new URL(pendiente.comprobanteUrl).pathname).toBe(new URL(subida.body.comprobanteUrl).pathname);
+    const enlace = new URL(pendiente.comprobanteUrl);
+    const abierto = await request(app.getHttpServer()).get(enlace.pathname + enlace.search).expect(200);
+    expect(abierto.headers['content-type']).toContain('image/webp');
+    expect(abierto.headers['cache-control']).toBe('private, no-store');
+    // Sin la firma, nadie lo abre; y tampoco existe ya en la carpeta pública.
+    await request(app.getHttpServer()).get(enlace.pathname).expect(403);
+    await request(app.getHttpServer()).get(enlace.pathname.replace('/archivos-privados/', '/uploads/')).expect(404);
+    // En la base queda la referencia, no la URL.
+    const pgComprobante = new Client({ connectionString: process.env.DATABASE_URL_PUBLICO });
+    await pgComprobante.connect();
+    const guardado = await pgComprobante.query('SELECT comprobante_url FROM pagos WHERE id = $1', [pendiente.pagoId]);
+    await pgComprobante.end();
+    expect(guardado.rows[0].comprobante_url).toMatch(/^privado:\/\/comprobantes-pago\/[0-9a-f-]{36}\.webp$/);
     // El nombre que se muestra es el del titular de la cuenta que pagó
     // (a quién contactar), no necesariamente el del pasajero que viaja
     // -- pueden ser personas distintas (comprar para un familiar).
@@ -314,7 +340,7 @@ describe('Métodos de pago manuales (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/compras/${compraId}/comprobante`)
       .set('Authorization', `Bearer ${tokenPasajero}`)
-      .attach('comprobante', Buffer.from('comprobante falso, no coincide con el monto'), {
+      .attach('comprobante', imagenPrueba, {
         filename: 'comprobante.jpg',
         contentType: 'image/jpeg',
       })
@@ -380,7 +406,7 @@ describe('Métodos de pago manuales (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/compras/${inicio.body.compraId}/comprobante`)
       .set('Authorization', `Bearer ${otroToken}`)
-      .attach('comprobante', Buffer.from('intento ajeno'), {
+      .attach('comprobante', imagenPrueba, {
         filename: 'comprobante.jpg',
         contentType: 'image/jpeg',
       })
@@ -413,7 +439,7 @@ describe('Métodos de pago manuales (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/compras/${inicio.body.compraId}/comprobante`)
         .set('Authorization', `Bearer ${tokenPasajero}`)
-        .attach('comprobante', Buffer.from('comprobante para factura'), {
+        .attach('comprobante', imagenPrueba, {
           filename: 'comprobante.jpg',
           contentType: 'image/jpeg',
         })

@@ -5,6 +5,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { FiltroExcepciones } from './infraestructura/http/filtro-excepciones';
+import { ArchivosModule } from './presentacion/archivos/archivos.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './infraestructura/database/database.module';
@@ -69,6 +70,7 @@ import { TerminosModule } from './presentacion/terminos/terminos.module';
     ComercialModule,
     LiquidacionesModule,
     ApiExternaModule,
+    ArchivosModule,
     GeneradorViajesModule,
     WalletModule,
     ReferidosModule,

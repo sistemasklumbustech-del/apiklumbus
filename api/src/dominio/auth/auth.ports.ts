@@ -404,12 +404,26 @@ export interface ArchivoSubido {
   nombreArchivo: string;
 }
 
+export interface ArchivoPrivadoSubido {
+  /** `privado://carpeta/archivo`: no es una URL. Para mostrarlo hay que pedir un enlace firmado. */
+  referencia: string;
+  nombreArchivo: string;
+}
+
 export interface AlmacenamientoArchivos {
+  /** Archivos públicos (fotos de perfil, logos, banners). */
   guardarImagen(
     buffer: Buffer,
     nombreOriginal: string,
     carpeta: string,
   ): Promise<ArchivoSubido>;
+
+  /** Archivos con datos de personas (comprobantes de pago): fuera de la carpeta pública. */
+  guardarPrivado(
+    buffer: Buffer,
+    nombreOriginal: string,
+    carpeta: 'comprobantes-pago',
+  ): Promise<ArchivoPrivadoSubido>;
 }
 
 /** Puerto de hashing de contraseñas — la capa de infra decide el algoritmo. */

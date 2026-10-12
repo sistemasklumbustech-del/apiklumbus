@@ -64,3 +64,6 @@ jobs:
             # reinicio a propósito: el código nuevo lee los dos formatos, pero el viejo no sabría
             # leer un dato ya cifrado. Es seguro repetirlo: solo toca lo que sigue en texto plano.
             node dist/scripts/cifrar-datos-sensibles.js
+            # Pasa a la carpeta privada los comprobantes que se subieron cuando eran públicos
+            # (12-oct-2026). También va después del reinicio y es seguro repetirlo.
+            node dist/scripts/migrar-archivos-privados.js
