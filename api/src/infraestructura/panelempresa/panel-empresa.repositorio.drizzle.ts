@@ -11,6 +11,7 @@ import type { DrizzleDb } from '../database/database.provider';
 import { ejecutarComoCooperativa } from '../database/tenant-transaction';
 import { BcryptHasher } from '../auth/bcrypt.hasher';
 import { CifradorTotpAesGcm } from '../auth/cifrador-totp.aes-gcm';
+import { CONTEXTO_DOCUMENTO_DISCAPACIDAD, descifrarDatoOpcional } from '../seguridad/datos-sensibles';
 import { generarSecretoWebhook } from '../../dominio/webhooks/firma-webhook';
 import type {
   PanelEmpresaRepositorio,
@@ -2113,7 +2114,12 @@ export class PanelEmpresaRepositorioDrizzle implements PanelEmpresaRepositorio {
         // Nunca se verifica automáticamente contra ningún sistema.
         documentoDiscapacidad:
           fila.tipo_tarifa === 'discapacidad'
-            ? { numeroDeclarado: fila.numero_documento_discapacidad }
+            ? {
+                numeroDeclarado: descifrarDatoOpcional(
+                  fila.numero_documento_discapacidad,
+                  CONTEXTO_DOCUMENTO_DISCAPACIDAD,
+                ),
+              }
             : undefined,
         // Wallet/cashback Fase 1 (13-ago-2026) -- datos que
         // PanelEmpresaService necesita para acreditar cashback justo

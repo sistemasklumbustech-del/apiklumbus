@@ -36,6 +36,7 @@ const puntosOperacionDestino = alias(puntosOperacion, 'po_destino_idem');
 import { DRIZZLE_DB_PUBLICO, DRIZZLE_DB } from '../database/database.module';
 import type { DrizzleDb } from '../database/database.provider';
 import { ejecutarComoCooperativa } from '../database/tenant-transaction';
+import { CONTEXTO_DOCUMENTO_DISCAPACIDAD, cifrarDatoOpcional } from '../seguridad/datos-sensibles';
 import { resolverEstadoTasa, tasaDeBoleto } from './tasa-boleto.sql';
 import type {
   CompraRepositorio,
@@ -396,7 +397,8 @@ export class CompraRepositorioDrizzle implements CompraRepositorio {
           tipoTarifa: p.tipoTarifa,
           esEmbarazada: p.esEmbarazada ?? false,
           sexo: p.sexo ?? null,
-          numeroDocumentoDiscapacidad: p.numeroDocumentoDiscapacidad ?? null,
+          // Dato de salud: se guarda cifrado (12-oct-2026).
+          numeroDocumentoDiscapacidad: cifrarDatoOpcional(p.numeroDocumentoDiscapacidad, CONTEXTO_DOCUMENTO_DISCAPACIDAD),
           fechaNacimiento: p.fechaNacimiento,
           esMenorEdad: esMenorDeEdad(p.tipoTarifa, p.fechaNacimiento),
           viajeAsientoId,

@@ -9,6 +9,7 @@ import type {
   EstadoCuentaCobro,
   FiltrosCuentasCobro,
 } from '../../dominio/cuentas-cobro/cuentas-cobro.ports';
+import { CONTEXTO_NUMERO_CUENTA_COBRO, cifrarDato, descifrarDato } from '../seguridad/datos-sensibles';
 
 interface Fila {
   id: string;
@@ -36,7 +37,8 @@ const mapear = (f: Fila): CuentaCobro => ({
   cooperativaNombre: f.cooperativa_nombre,
   entidadFinanciera: f.entidad_financiera,
   tipoCuenta: f.tipo_cuenta,
-  numeroCuenta: f.numero_cuenta,
+  // Se guarda cifrado (12-oct-2026); un valor anterior sin cifrar se lee tal cual.
+  numeroCuenta: descifrarDato(f.numero_cuenta, CONTEXTO_NUMERO_CUENTA_COBRO),
   titularNombre: f.titular_nombre,
   titularTipoIdentificacion: f.titular_tipo_identificacion,
   titularIdentificacion: f.titular_identificacion,
@@ -90,7 +92,7 @@ export class CuentasCobroRepositorioDrizzle implements CuentasCobroRepositorio {
            titular_tipo_identificacion, titular_identificacion, correo_notificacion,
            registrada_por_usuario_id)
         VALUES (${cooperativaId}, ${d.entidadFinanciera}::entidad_financiera,
-                ${d.tipoCuenta}::tipo_cuenta_bancaria, ${d.numeroCuenta}, ${d.titularNombre},
+                ${d.tipoCuenta}::tipo_cuenta_bancaria, ${cifrarDato(d.numeroCuenta, CONTEXTO_NUMERO_CUENTA_COBRO)}, ${d.titularNombre},
                 ${d.titularTipoIdentificacion}::tipo_identificacion_titular,
                 ${d.titularIdentificacion}, ${d.correoNotificacion}, ${usuarioId})
         RETURNING id

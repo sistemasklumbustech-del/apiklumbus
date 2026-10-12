@@ -196,7 +196,8 @@ export const pasajerosCompra = pgTable(
     // adultoResponsableDocumento en autorizaciones_menor (se declara,
     // se verifica físicamente en el andén, nunca contra un registro
     // externo). Nullable -- solo aplica cuando tipoTarifa='discapacidad'.
-    numeroDocumentoDiscapacidad: varchar('numero_documento_discapacidad', { length: 20 }),
+    // Dato de salud: se guarda cifrado (migración 0067); por eso es text y no varchar(20).
+    numeroDocumentoDiscapacidad: text('numero_documento_discapacidad'),
 
     // RF-MENOR-001 — calculado/confirmado en la capa de aplicación al
     // momento del checkout (a partir de tipoTarifa='nino' o edad < 18

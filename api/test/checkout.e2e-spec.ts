@@ -1329,6 +1329,19 @@ describe('Checkout y pago (e2e)', () => {
     expect(validacion.body.documentoDiscapacidad.numeroDeclarado).toBe(
       'CEDULA-1701006429',
     );
+
+    // Dato de salud (12-oct-2026): en la base queda cifrado, aunque el personal lo vea completo al validar.
+    const pgCifrado = new Client({ connectionString: process.env.DATABASE_URL_PUBLICO });
+    await pgCifrado.connect();
+    const guardado = await pgCifrado.query(
+      `SELECT pc.numero_documento_discapacidad AS valor
+       FROM boletos b JOIN pasajeros_compra pc ON pc.id = b.pasajero_compra_id
+       WHERE b.codigo_qr = $1`,
+      [codigoQr],
+    );
+    await pgCifrado.end();
+    expect(guardado.rows[0].valor.startsWith('enc:v1:')).toBe(true);
+    expect(guardado.rows[0].valor).not.toContain('1701006429');
   });
 
   it('la cooperativa puede ver la lista de pasajeros ("manifiesto") de un viaje concreto — hallazgo real cerrado 22-jul-2026 (antes no existía ninguna forma de ver quién iba a abordar)', async () => {

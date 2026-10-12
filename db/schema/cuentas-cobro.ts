@@ -33,7 +33,8 @@ export const cuentasCobroCooperativa = pgTable(
       .notNull(),
     entidadFinanciera: entidadFinancieraEnum('entidad_financiera').notNull(),
     tipoCuenta: tipoCuentaBancariaEnum('tipo_cuenta').notNull(),
-    numeroCuenta: varchar('numero_cuenta', { length: 30 }).notNull(),
+    // Se guarda cifrado (migración 0067); por eso es text y no varchar(30).
+    numeroCuenta: text('numero_cuenta').notNull(),
     titularNombre: varchar('titular_nombre', { length: 150 }).notNull(),
     titularTipoIdentificacion: tipoIdentificacionTitularEnum('titular_tipo_identificacion').notNull(),
     titularIdentificacion: varchar('titular_identificacion', { length: 13 }).notNull(),

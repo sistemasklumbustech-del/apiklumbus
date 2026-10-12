@@ -60,3 +60,7 @@ jobs:
             sudo systemctl restart columbus-api.service
             sleep 2
             systemctl is-active columbus-api.service
+            # Cifra los datos sensibles guardados antes del cifrado (12-oct-2026). Va DESPUÉS del
+            # reinicio a propósito: el código nuevo lee los dos formatos, pero el viejo no sabría
+            # leer un dato ya cifrado. Es seguro repetirlo: solo toca lo que sigue en texto plano.
+            node dist/scripts/cifrar-datos-sensibles.js
