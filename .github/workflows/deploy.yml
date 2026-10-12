@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy vía SSH
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.5
         env:
           # Conexión de superusuario -- NUNCA la de la app en producción
           # (ver db/scripts/aplicar-migraciones.cjs). `envs` abajo la
