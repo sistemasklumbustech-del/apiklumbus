@@ -4,11 +4,12 @@
  * pasaje de cada cooperativa, registro de la tasa en el SIAT 3000 y factura
  * del cargo de servicio de la plataforma.
  */
-import { pgTable, pgEnum, uuid, integer, text, jsonb, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, pgEnum, uuid, integer, text, jsonb, timestamp, index, uniqueIndex, pgPolicy } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 import { compras } from './ventas';
 import { cooperativas } from './tenancy';
 
+import { appRole, platformAdminRole, filtroCooperativaActual } from './rls';
 export const tipoTareaPostpagoEnum = pgEnum('tipo_tarea_postpago', [
   'factura_pasaje',
   'registro_tasa',
@@ -55,8 +56,15 @@ export const tareasPostpago = pgTable(
       .where(sql`${t.cooperativaId} IS NULL`),
     index('idx_tareas_postpago_pendientes').on(t.estado, t.proximoIntentoEn),
     index('idx_tareas_postpago_compra').on(t.compraId),
+    // 12-oct-2026 (migración 0066): aislamiento entre cooperativas, mismo patrón que el resto.
+    pgPolicy('aislamiento_cooperativa_tareas_postpago', {
+      for: 'all',
+      to: [appRole, platformAdminRole],
+      using: filtroCooperativaActual,
+      withCheck: filtroCooperativaActual,
+    }),
   ],
-);
+).enableRLS();
 
 export const tareasPostpagoRelations = relations(tareasPostpago, ({ one }) => ({
   compra: one(compras, { fields: [tareasPostpago.compraId], references: [compras.id] }),

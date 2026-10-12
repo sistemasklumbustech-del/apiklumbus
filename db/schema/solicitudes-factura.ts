@@ -9,11 +9,12 @@
  * SERVICIO de Colombus, un documento tributario distinto, de una
  * parte distinta.
  */
-import { pgTable, uuid, jsonb, text, timestamp, index } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { pgTable, uuid, jsonb, text, timestamp, index, pgPolicy } from 'drizzle-orm/pg-core';
+import { relations, sql } from 'drizzle-orm';
 import { boletos } from './ventas';
 import { estadoSolicitudFacturaEnum } from './enums';
 
+import { appRole, platformAdminRole, filtroCooperativaActual } from './rls';
 export const solicitudesFacturaCooperativa = pgTable(
   'solicitudes_factura_cooperativa',
   {
@@ -40,8 +41,15 @@ export const solicitudesFacturaCooperativa = pgTable(
   (t) => [
     index('idx_solicitudes_factura_boleto').on(t.boletoId),
     index('idx_solicitudes_factura_estado').on(t.estado),
+    // 12-oct-2026 (migración 0066): pertenece a una cooperativa a través de su padre.
+    pgPolicy('aislamiento_cooperativa_solicitudes_factura', {
+      for: 'all',
+      to: [appRole, platformAdminRole],
+      using: sql`current_user = 'ticketya_platform_admin' OR boleto_id IN (SELECT id FROM boletos WHERE cooperativa_id = NULLIF(current_setting('app.current_cooperativa_id', true), '')::uuid)`,
+      withCheck: sql`current_user = 'ticketya_platform_admin' OR boleto_id IN (SELECT id FROM boletos WHERE cooperativa_id = NULLIF(current_setting('app.current_cooperativa_id', true), '')::uuid)`,
+    }),
   ],
-);
+).enableRLS();
 
 export const solicitudesFacturaCooperativaRelations = relations(
   solicitudesFacturaCooperativa,

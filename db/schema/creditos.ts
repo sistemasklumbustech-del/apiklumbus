@@ -16,12 +16,13 @@
  * deliberadamente no incluida en esta entrega — ver nota en
  * ESTADO_Y_RUTA.md / plan de corrección, 28-jul-2026.
  */
-import { pgTable, uuid, numeric, timestamp, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, numeric, timestamp, index, pgPolicy } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { usuarios } from './usuarios';
 import { cooperativas } from './tenancy';
 import { boletos } from './ventas';
 
+import { appRole, platformAdminRole, filtroCooperativaActual } from './rls';
 export const creditosPasajero = pgTable(
   'creditos_pasajero',
   {
@@ -49,8 +50,15 @@ export const creditosPasajero = pgTable(
   (t) => [
     index('idx_creditos_pasajero_usuario').on(t.usuarioId),
     index('idx_creditos_pasajero_cooperativa').on(t.cooperativaId),
+    // 12-oct-2026 (migración 0066): aislamiento entre cooperativas, mismo patrón que el resto.
+    pgPolicy('aislamiento_cooperativa_creditos_pasajero', {
+      for: 'all',
+      to: [appRole, platformAdminRole],
+      using: filtroCooperativaActual,
+      withCheck: filtroCooperativaActual,
+    }),
   ],
-);
+).enableRLS();
 
 export const creditosPasajeroRelations = relations(creditosPasajero, ({ one }) => ({
   usuario: one(usuarios, { fields: [creditosPasajero.usuarioId], references: [usuarios.id] }),

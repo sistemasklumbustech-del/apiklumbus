@@ -131,8 +131,17 @@ export const horariosRuta = pgTable(
     tipoVehiculoPredeterminadoId: uuid('tipo_vehiculo_predeterminado_id'),
     activo: boolean('activo').default(true).notNull(),
   },
-  (t) => [index('idx_horarios_ruta_ruta').on(t.rutaId)],
-);
+  (t) => [
+    index('idx_horarios_ruta_ruta').on(t.rutaId),
+    // 12-oct-2026 (migración 0066): pertenece a una cooperativa a través de su padre.
+    pgPolicy('aislamiento_cooperativa_horarios_ruta', {
+      for: 'all',
+      to: [appRole, platformAdminRole],
+      using: sql`current_user = 'ticketya_platform_admin' OR ruta_id IN (SELECT id FROM rutas WHERE cooperativa_id = NULLIF(current_setting('app.current_cooperativa_id', true), '')::uuid)`,
+      withCheck: sql`current_user = 'ticketya_platform_admin' OR ruta_id IN (SELECT id FROM rutas WHERE cooperativa_id = NULLIF(current_setting('app.current_cooperativa_id', true), '')::uuid)`,
+    }),
+  ],
+).enableRLS();
 
 /**
  * Instancia real de un viaje: lo que RF-BUS busca, RF-SEAT reserva y

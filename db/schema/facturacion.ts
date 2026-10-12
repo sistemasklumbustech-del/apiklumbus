@@ -10,6 +10,7 @@ import {
   timestamp,
   uniqueIndex,
   index,
+  pgPolicy,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { boletos, compras } from './ventas';
@@ -17,6 +18,7 @@ import { puntosOperacion, cooperativas } from './tenancy';
 import { sujetoTributarioEnum, estadoComprobanteEnum } from './enums';
 import { registrosTasaTerminal } from './integraciones-terminal';
 
+import { appRole, platformAdminRole, filtroCooperativaActual } from './rls';
 /**
  * RF-TICKET-002 — comprobante de tasa de terminal, uno por pasajero
  * (criterio de aceptación: "cada pasajero de la compra recibe su propio
@@ -131,8 +133,15 @@ export const comprobantesElectronicos = pgTable(
     index('idx_comprobantes_electronicos_compra').on(t.compraId),
     index('idx_comprobantes_electronicos_sujeto').on(t.sujetoTributario),
     index('idx_comprobantes_electronicos_estado').on(t.estado),
+    // 12-oct-2026 (migración 0066): aislamiento entre cooperativas, mismo patrón que el resto.
+    pgPolicy('aislamiento_cooperativa_comprobantes_electronicos', {
+      for: 'all',
+      to: [appRole, platformAdminRole],
+      using: filtroCooperativaActual,
+      withCheck: filtroCooperativaActual,
+    }),
   ],
-);
+).enableRLS();
 
 export const comprobantesTasaTerminalRelations = relations(comprobantesTasaTerminal, ({ one }) => ({
   boleto: one(boletos, { fields: [comprobantesTasaTerminal.boletoId], references: [boletos.id] }),

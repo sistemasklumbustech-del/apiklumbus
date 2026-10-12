@@ -21,11 +21,13 @@ import {
   text,
   index,
   check,
+  pgPolicy,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 import { cooperativas, puntosOperacion } from './tenancy';
 import { usuarios } from './usuarios';
 
+import { appRole, platformAdminRole, filtroCooperativaActual } from './rls';
 export const liquidacionesCooperativa = pgTable(
   'liquidaciones_cooperativa',
   {
@@ -54,8 +56,15 @@ export const liquidacionesCooperativa = pgTable(
   (t) => [
     index('idx_liquidaciones_cooperativa_cooperativa').on(t.cooperativaId),
     index('idx_liquidaciones_cooperativa_periodo').on(t.periodoInicio, t.periodoFin),
+    // 12-oct-2026 (migración 0066): aislamiento entre cooperativas, mismo patrón que el resto.
+    pgPolicy('aislamiento_cooperativa_liquidaciones_cooperativa', {
+      for: 'all',
+      to: [appRole, platformAdminRole],
+      using: filtroCooperativaActual,
+      withCheck: filtroCooperativaActual,
+    }),
   ],
-);
+).enableRLS();
 
 export const liquidacionesTerminal = pgTable(
   'liquidaciones_terminal',
@@ -118,8 +127,15 @@ export const ajustesLiquidacion = pgTable(
       sql`(liquidacion_cooperativa_id IS NOT NULL AND liquidacion_terminal_id IS NULL)
           OR (liquidacion_cooperativa_id IS NULL AND liquidacion_terminal_id IS NOT NULL)`,
     ),
+    // 12-oct-2026 (migración 0066): pertenece a una cooperativa a través de su padre.
+    pgPolicy('aislamiento_cooperativa_ajustes_liquidacion', {
+      for: 'all',
+      to: [appRole, platformAdminRole],
+      using: sql`current_user = 'ticketya_platform_admin' OR liquidacion_cooperativa_id IN (SELECT id FROM liquidaciones_cooperativa WHERE cooperativa_id = NULLIF(current_setting('app.current_cooperativa_id', true), '')::uuid)`,
+      withCheck: sql`current_user = 'ticketya_platform_admin' OR liquidacion_cooperativa_id IN (SELECT id FROM liquidaciones_cooperativa WHERE cooperativa_id = NULLIF(current_setting('app.current_cooperativa_id', true), '')::uuid)`,
+    }),
   ],
-);
+).enableRLS();
 
 export const liquidacionesCooperativaRelations = relations(liquidacionesCooperativa, ({ one, many }) => ({
   cooperativa: one(cooperativas, {

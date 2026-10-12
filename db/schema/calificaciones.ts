@@ -12,12 +12,13 @@
  * validación de que el boleto le pertenece al usuario que califica
  * vive en la capa de aplicación (CalificacionesService), no aquí.
  */
-import { pgTable, uuid, smallint, text, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, smallint, text, timestamp, uniqueIndex, index, pgPolicy } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { boletos } from './ventas';
 import { cooperativas } from './tenancy';
 import { usuarios } from './usuarios';
 
+import { appRole, platformAdminRole, filtroCooperativaActual } from './rls';
 export const calificaciones = pgTable(
   'calificaciones',
   {
@@ -48,8 +49,15 @@ export const calificaciones = pgTable(
   (t) => [
     uniqueIndex('uq_calificaciones_boleto').on(t.boletoId),
     index('idx_calificaciones_cooperativa').on(t.cooperativaId),
+    // 12-oct-2026 (migración 0066): aislamiento entre cooperativas, mismo patrón que el resto.
+    pgPolicy('aislamiento_cooperativa_calificaciones', {
+      for: 'all',
+      to: [appRole, platformAdminRole],
+      using: filtroCooperativaActual,
+      withCheck: filtroCooperativaActual,
+    }),
   ],
-);
+).enableRLS();
 
 export const calificacionesRelations = relations(calificaciones, ({ one }) => ({
   boleto: one(boletos, { fields: [calificaciones.boletoId], references: [boletos.id] }),

@@ -16,11 +16,12 @@
  * a este mismo catálogo (`tarjeta_pasarela`) — el diseño ya lo
  * contempla, no hay que rehacer nada.
  */
-import { pgTable, uuid, boolean, jsonb, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, boolean, jsonb, timestamp, uniqueIndex, index, pgPolicy } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { cooperativas } from './tenancy';
 import { tipoMetodoPagoEnum, entidadFinancieraEnum } from './enums';
 
+import { appRole, platformAdminRole, filtroCooperativaActual } from './rls';
 export const metodosPagoCooperativa = pgTable(
   'metodos_pago_cooperativa',
   {
@@ -54,8 +55,15 @@ export const metodosPagoCooperativa = pgTable(
     // segunda que cargué?".
     uniqueIndex('uq_metodos_pago_cooperativa_tipo').on(t.cooperativaId, t.tipo),
     index('idx_metodos_pago_cooperativa').on(t.cooperativaId),
+    // 12-oct-2026 (migración 0066): aislamiento entre cooperativas, mismo patrón que el resto.
+    pgPolicy('aislamiento_cooperativa_metodos_pago_cooperativa', {
+      for: 'all',
+      to: [appRole, platformAdminRole],
+      using: filtroCooperativaActual,
+      withCheck: filtroCooperativaActual,
+    }),
   ],
-);
+).enableRLS();
 
 export const metodosPagoCooperativaRelations = relations(metodosPagoCooperativa, ({ one }) => ({
   cooperativa: one(cooperativas, {
