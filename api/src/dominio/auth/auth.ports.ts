@@ -118,6 +118,29 @@ export interface UsuarioRepositorio {
 
   marcarCorreoVerificado(usuarioId: string): Promise<void>;
 
+  /** Inicio de sesión con Google/Apple (oct-2026). */
+  buscarPorProveedorExterno(proveedor: ProveedorSocial, proveedorId: string): Promise<UsuarioDominio | null>;
+  /** Cuenta de pasajero nueva creada desde un proveedor: sin contraseña y con el correo ya verificado por el proveedor. */
+  crearPasajeroExterno(datos: {
+    correo: string;
+    nombreCompleto: string;
+    fotoUrl?: string | null;
+    proveedor: ProveedorSocial;
+    proveedorId: string;
+  }): Promise<UsuarioDominio>;
+  /**
+   * Liga un proveedor a una cuenta que ya existía (mismo correo, verificado por el proveedor) y marca el
+   * correo como verificado. Con `borrarPassword` también quita la contraseña: se usa cuando el correo de la
+   * cuenta nunca se había verificado, para que quien la creó sin ser dueño del correo no conserve el acceso.
+   * No pisa un proveedor que la cuenta ya tenía.
+   */
+  vincularProveedorExterno(
+    usuarioId: string,
+    proveedor: ProveedorSocial,
+    proveedorId: string,
+    borrarPassword: boolean,
+  ): Promise<void>;
+
   /**
    * Cambio de correo (29-jul-2026, hallazgo real del usuario): si
    * pierde acceso a su correo, sin esto queda fuera de su cuenta para
@@ -442,6 +465,33 @@ export interface HasherContrasena {
 export interface CifradorTotp {
   cifrar(textoPlano: string): string;
   descifrar(textoCifrado: string): string;
+}
+
+export type ProveedorSocial = 'google' | 'apple';
+
+/** Lo que el proveedor garantiza de la persona después de verificar su token. */
+export interface IdentidadExterna {
+  proveedorId: string;
+  correo: string | null;
+  correoVerificado: boolean;
+  nombre: string | null;
+  fotoUrl: string | null;
+}
+
+/** El token del proveedor no es válido (firma, vencimiento, destinatario...) o el proveedor no está configurado. */
+export class TokenSocialInvalidoError extends Error {
+  constructor(
+    mensaje: string,
+    readonly noConfigurado = false,
+  ) {
+    super(mensaje);
+  }
+}
+
+/** Puerto de verificación de tokens de identidad de Google y Apple. */
+export interface VerificadorTokenSocial {
+  /** `nonce`, si viene, debe coincidir con el del token (o con su SHA-256 en hexadecimal, como lo manda Apple). */
+  verificar(proveedor: ProveedorSocial, idToken: string, nonce?: string): Promise<IdentidadExterna>;
 }
 
 /** Puerto de emisión/verificación de tokens de sesión. */

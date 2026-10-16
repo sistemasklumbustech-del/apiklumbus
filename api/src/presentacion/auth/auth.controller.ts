@@ -15,6 +15,7 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from '../../aplicacion/auth/auth.service';
 import { RegistroDto } from './dto/registro.dto';
 import { LoginDto } from './dto/login.dto';
+import { LoginSocialDto } from './dto/login-social.dto';
 import { ActualizarPerfilDto } from './dto/actualizar-perfil.dto';
 import { ActualizarIdentidadDto } from './dto/actualizar-identidad.dto';
 import { CambiarPasswordDto } from './dto/cambiar-password.dto';
@@ -62,6 +63,13 @@ export class AuthController {
   @Post('login')
   async login(@Body() datos: LoginDto) {
     return this.authService.login(datos.correo, datos.password);
+  }
+
+  /** Inicio de sesión / registro con Google o Apple (oct-2026), solo pasajeros. Mismo límite que el login. */
+  @Throttle({ default: { limit: process.env.NODE_ENV === 'test' ? 10000 : 10, ttl: 60000 } })
+  @Post('social')
+  async loginSocial(@Body() datos: LoginSocialDto, @Request() req: { ip?: string }) {
+    return this.authService.loginSocial(datos, req.ip);
   }
 
   /**

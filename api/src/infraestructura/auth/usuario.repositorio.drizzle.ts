@@ -1,11 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { usuarios } from '@columbus/db';
 import { DRIZZLE_DB_PUBLICO } from '../database/database.module';
 import type { DrizzleDb } from '../database/database.provider';
 import {
   DatosRegistro,
+  ProveedorSocial,
   UsuarioDominio,
   UsuarioRepositorio,
 } from '../../dominio/auth/auth.ports';
@@ -61,6 +62,53 @@ export class UsuarioRepositorioDrizzle implements UsuarioRepositorio {
       })
       .returning();
     return this.aDominio(fila);
+  }
+
+  async buscarPorProveedorExterno(proveedor: ProveedorSocial, proveedorId: string): Promise<UsuarioDominio | null> {
+    const fila = await this.db.query.usuarios.findFirst({
+      where: and(eq(usuarios.proveedorExterno, proveedor), eq(usuarios.proveedorExternoId, proveedorId)),
+    });
+    return fila ? this.aDominio(fila) : null;
+  }
+
+  async crearPasajeroExterno(datos: {
+    correo: string;
+    nombreCompleto: string;
+    fotoUrl?: string | null;
+    proveedor: ProveedorSocial;
+    proveedorId: string;
+  }): Promise<UsuarioDominio> {
+    const [fila] = await this.db
+      .insert(usuarios)
+      .values({
+        rol: 'pasajero',
+        correo: datos.correo,
+        nombreCompleto: datos.nombreCompleto,
+        fotoUrl: datos.fotoUrl ?? null,
+        passwordHash: null,
+        proveedorExterno: datos.proveedor,
+        proveedorExternoId: datos.proveedorId,
+        correoVerificado: true,
+      })
+      .returning();
+    return this.aDominio(fila);
+  }
+
+  async vincularProveedorExterno(
+    usuarioId: string,
+    proveedor: ProveedorSocial,
+    proveedorId: string,
+    borrarPassword: boolean,
+  ): Promise<void> {
+    // Solo se escribe el proveedor si la cuenta todavía no tenía uno.
+    await this.db
+      .update(usuarios)
+      .set({ proveedorExterno: proveedor, proveedorExternoId: proveedorId })
+      .where(and(eq(usuarios.id, usuarioId), isNull(usuarios.proveedorExterno)));
+    await this.db
+      .update(usuarios)
+      .set(borrarPassword ? { correoVerificado: true, passwordHash: null } : { correoVerificado: true })
+      .where(eq(usuarios.id, usuarioId));
   }
 
   async registrarIntentoFallido(
