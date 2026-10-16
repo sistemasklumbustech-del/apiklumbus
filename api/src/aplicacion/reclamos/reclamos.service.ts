@@ -10,6 +10,7 @@ import {
 import type { NotificadorEmail } from '../../dominio/auth/auth.ports';
 import { NOTIFICADOR_EMAIL } from '../auth/auth.service';
 import { AuditoriaRegistrador } from '../../infraestructura/auditoria/auditoria.registrador';
+import { NotificacionesPushService } from '../notificaciones-push/notificaciones-push.service';
 import {
   ETIQUETA_TIPO_RECLAMO,
   type FiltrosReclamosCooperativa,
@@ -33,6 +34,7 @@ export class ReclamosService {
     private readonly reclamos: ReclamosRepositorio,
     @Inject(NOTIFICADOR_EMAIL) private readonly email: NotificadorEmail,
     private readonly auditoria: AuditoriaRegistrador,
+    private readonly push: NotificacionesPushService,
   ) {}
 
   async crear(
@@ -270,6 +272,11 @@ export class ReclamosService {
     try {
       const datos = await this.reclamos.datosParaAvisoResolucion(reclamoId);
       if (!datos) return;
+      await this.push.enviarAUsuario(datos.pasajeroUsuarioId, {
+        titulo: aFavor ? 'Tu reclamo fue resuelto' : 'Respondimos tu reclamo',
+        cuerpo: `${datos.cooperativaNombre} respondió tu reclamo del viaje ${datos.origenCiudad} → ${datos.destinoCiudad}.`,
+        datos: { tipo: 'reclamo_respondido', reclamoId },
+      });
       const correo = await this.reclamos.correoDePasajero(
         datos.pasajeroUsuarioId,
       );

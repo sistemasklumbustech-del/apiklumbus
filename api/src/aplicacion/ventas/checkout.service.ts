@@ -26,6 +26,7 @@ import type { ProveedorFacturacionElectronica } from '../../dominio/facturacion/
 import { DespachadorWebhooksService } from '../webhooks/despachador-webhooks.service';
 import { WalletService } from '../wallet/wallet.service';
 import { ReferidosService } from '../referidos/referidos.service';
+import { NotificacionesPushService } from '../notificaciones-push/notificaciones-push.service';
 import { TerminosService } from '../terminos/terminos.service';
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
@@ -81,6 +82,7 @@ export class CheckoutService implements OnModuleInit {
     private readonly terminos: TerminosService,
     private readonly auditoria: AuditoriaRegistrador,
     private readonly postpago: PostpagoService,
+    private readonly push: NotificacionesPushService,
   ) {}
 
   onModuleInit(): void {
@@ -513,6 +515,13 @@ export class CheckoutService implements OnModuleInit {
    * no debe revertir ni romper una venta ya confirmada.
    */
   async enviarBoletosPorCorreo(compraId: string): Promise<void> {
+    // Aviso al teléfono de quien compró con cuenta (app móvil); nunca lanza y va antes del correo
+    // para que no dependa de que el armado de los PDF salga bien.
+    await this.push.enviarACompra(compraId, {
+      titulo: '¡Tu boleto está listo!',
+      cuerpo: 'Tu compra fue confirmada. Ábrela en «Mis boletos».',
+      datos: { tipo: 'compra_confirmada', compraId },
+    });
     try {
       const resumen = await this.compras.obtenerResumenNotificacionCompra(compraId);
       if (!resumen) return;
@@ -1539,6 +1548,11 @@ export class CheckoutService implements OnModuleInit {
       entidadTipo: 'pago',
       entidadId: pagoId,
       detalle: { cooperativaId, motivo: motivo ?? null },
+    });
+    await this.push.enviarAPago(pagoId, {
+      titulo: 'No pudimos confirmar tu pago',
+      cuerpo: motivo ? `La cooperativa lo rechazó: ${motivo}` : 'La cooperativa rechazó tu comprobante. Revisa tus boletos.',
+      datos: { tipo: 'pago_rechazado' },
     });
     return { ok: true };
   }
