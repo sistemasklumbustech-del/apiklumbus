@@ -11,11 +11,13 @@ import {
   NOTIFICADOR_EMAIL,
   ALMACENAMIENTO_ARCHIVOS,
   CIFRADOR_TOTP,
+  VERIFICADOR_TOKEN_SOCIAL,
 } from '../../aplicacion/auth/auth.service';
 import { UsuarioRepositorioDrizzle } from '../../infraestructura/auth/usuario.repositorio.drizzle';
 import { BcryptHasher } from '../../infraestructura/auth/bcrypt.hasher';
 import { JwtEmisorTokens } from '../../infraestructura/auth/jwt.emisor-tokens';
 import { CifradorTotpAesGcm } from '../../infraestructura/auth/cifrador-totp.aes-gcm';
+import { VerificadorTokenSocialJwks } from '../../infraestructura/auth/verificador-token-social';
 import { ResendNotificador } from '../../infraestructura/notificaciones/resend.notificador';
 import { SimuladorAlmacenamiento } from '../../infraestructura/almacenamiento/simulador.almacenamiento';
 import { JwtStrategy } from './guards/jwt.strategy';
@@ -60,6 +62,7 @@ import { TerminosModule } from '../terminos/terminos.module';
     { provide: NOTIFICADOR_EMAIL, useClass: ResendNotificador },
     { provide: ALMACENAMIENTO_ARCHIVOS, useClass: SimuladorAlmacenamiento },
     { provide: CIFRADOR_TOTP, useClass: CifradorTotpAesGcm },
+    { provide: VERIFICADOR_TOKEN_SOCIAL, useClass: VerificadorTokenSocialJwks },
   ],
   exports: [RolesGuard, NOTIFICADOR_EMAIL, ALMACENAMIENTO_ARCHIVOS],
 })

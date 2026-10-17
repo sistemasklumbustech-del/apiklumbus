@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import type { NotificacionesProgramadasRepositorio } from '../../dominio/notificaciones-programadas/notificaciones-programadas.ports';
 import type { NotificadorWhatsApp } from '../../dominio/auth/auth.ports';
+import { NotificacionesPushService } from '../notificaciones-push/notificaciones-push.service';
 
 export const NOTIFICACIONES_PROGRAMADAS_REPOSITORIO =
   'NOTIFICACIONES_PROGRAMADAS_REPOSITORIO';
@@ -25,6 +26,7 @@ export class NotificacionesProgramadasService {
     private readonly repo: NotificacionesProgramadasRepositorio,
     @Inject(NOTIFICADOR_WHATSAPP)
     private readonly whatsapp: NotificadorWhatsApp,
+    private readonly push: NotificacionesPushService,
   ) {}
 
   /**
@@ -40,6 +42,17 @@ export class NotificacionesProgramadasService {
     );
     for (const p of pendientes) {
       const { id } = await this.repo.registrarRecordatorio(p.viajeId, p.compraId, p.telefono);
+      // Push a la app (si compró con cuenta); va antes del WhatsApp para no depender de que haya teléfono.
+      const hora = new Date(p.horaSalidaProgramada).toLocaleTimeString('es-EC', {
+        timeZone: 'America/Guayaquil',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      await this.push.enviarACompra(p.compraId, {
+        titulo: 'Tu viaje es mañana',
+        cuerpo: `${p.origenCiudad} → ${p.destinoCiudad}${hora.includes('Invalid') ? '' : `, sale a las ${hora}`}. ¡No llegues tarde!`,
+        datos: { tipo: 'recordatorio_viaje', compraId: p.compraId },
+      });
       if (!p.telefono) {
         await this.repo.marcarNotificacionFallida(id, 'El comprador no tiene teléfono registrado.');
         continue;
@@ -80,6 +93,11 @@ export class NotificacionesProgramadasService {
           compra.compraId,
           compra.telefono,
         );
+        await this.push.enviarACompra(compra.compraId, {
+          titulo: 'Cambio en tu viaje',
+          cuerpo: motivo,
+          datos: { tipo: 'cambio_operativo', compraId: compra.compraId },
+        });
         if (!compra.telefono) {
           await this.repo.marcarNotificacionFallida(id, 'El comprador no tiene teléfono registrado.');
           continue;
@@ -113,6 +131,11 @@ export class NotificacionesProgramadasService {
     );
     for (const p of pendientes) {
       const { id } = await this.repo.registrarAvisoLlegada(p.viajeId, p.compraId, p.telefono);
+      await this.push.enviarACompra(p.compraId, {
+        titulo: `Llegas pronto a ${p.destinoCiudad}`,
+        cuerpo: 'No olvides tus pertenencias al bajar del bus.',
+        datos: { tipo: 'aviso_llegada', compraId: p.compraId },
+      });
       if (!p.telefono) {
         await this.repo.marcarNotificacionFallida(id, 'El comprador no tiene teléfono registrado.');
         continue;
@@ -144,6 +167,11 @@ export class NotificacionesProgramadasService {
     );
     for (const p of pendientes) {
       const { id } = await this.repo.registrarSolicitudCalificacion(p.viajeId, p.compraId, p.telefono);
+      await this.push.enviarACompra(p.compraId, {
+        titulo: '¿Cómo te fue en el viaje?',
+        cuerpo: `Califica tu viaje a ${p.destinoCiudad}: ayuda a otros pasajeros.`,
+        datos: { tipo: 'solicitud_calificacion', compraId: p.compraId },
+      });
       if (!p.telefono) {
         await this.repo.marcarNotificacionFallida(id, 'El comprador no tiene teléfono registrado.');
         continue;

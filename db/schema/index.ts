@@ -32,3 +32,4 @@ export * from './terminos';
 export * from './reclamos';
 export * from './cuentas-cobro';
 export * from './postpago';
+export * from './dispositivos-push';

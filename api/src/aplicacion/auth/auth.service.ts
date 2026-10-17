@@ -5,6 +5,8 @@ import {
   UnauthorizedException,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import QRCode from 'qrcode';
@@ -18,6 +20,8 @@ import type {
   NotificadorEmail,
   AlmacenamientoArchivos,
   CifradorTotp,
+  ProveedorSocial,
+  VerificadorTokenSocial,
 } from '../../dominio/auth/auth.ports';
 import {
   calcularBloqueoTrasIntentoFallido,
@@ -27,6 +31,7 @@ import {
   generarCodigoTotp,
   verificarCodigoTotp,
   generarUriTotp,
+  TokenSocialInvalidoError,
 } from '../../dominio/auth/auth.ports';
 import { ReferidosService } from '../referidos/referidos.service';
 import { TerminosService } from '../terminos/terminos.service';
@@ -38,6 +43,7 @@ export const EMISOR_TOKENS = 'EMISOR_TOKENS';
 export const NOTIFICADOR_EMAIL = 'NOTIFICADOR_EMAIL';
 export const ALMACENAMIENTO_ARCHIVOS = 'ALMACENAMIENTO_ARCHIVOS';
 export const CIFRADOR_TOTP = 'CIFRADOR_TOTP';
+export const VERIFICADOR_TOKEN_SOCIAL = 'VERIFICADOR_TOKEN_SOCIAL';
 
 /**
  * Ítem 19, Fase 3 (05-ago-2026) -- roles con 2FA obligatorio, sin
@@ -74,6 +80,7 @@ export class AuthService {
     @Inject(NOTIFICADOR_EMAIL) private readonly email: NotificadorEmail,
     @Inject(ALMACENAMIENTO_ARCHIVOS) private readonly almacenamiento: AlmacenamientoArchivos,
     @Inject(CIFRADOR_TOTP) private readonly cifradorTotp: CifradorTotp,
+    @Inject(VERIFICADOR_TOKEN_SOCIAL) private readonly verificadorSocial: VerificadorTokenSocial,
     private readonly referidos: ReferidosService,
     private readonly terminos: TerminosService,
     private readonly auditoria: AuditoriaRegistrador,
@@ -255,6 +262,105 @@ export class AuthService {
     return this.emitirTokenPara(usuario);
   }
 
+  /**
+   * Inicio de sesión / creación de cuenta con Google o Apple (oct-2026), solo para pasajeros.
+   *
+   * El proveedor ya verificó a la persona; aquí solo se comprueba su token (firma, destinatario,
+   * vencimiento) y se decide a qué cuenta corresponde:
+   *  1. Ya entró antes con ese proveedor -> esa cuenta.
+   *  2. Existe una cuenta con el mismo correo y el proveedor lo garantiza verificado -> se liga. Si el
+   *     correo de esa cuenta nunca se había verificado, se le borra la contraseña: quien la creó sin ser
+   *     dueño del correo no debe conservar el acceso (secuestro previo de la cuenta).
+   *  3. Si no, se crea una cuenta de pasajero nueva (exige aceptar los Términos), sin contraseña y sin
+   *     cédula ni teléfono: se completan después en «Datos personales» o al comprar.
+   * Las cuentas del personal (vendedor, administradores) no entran por aquí: tienen 2FA obligatorio.
+   */
+  async loginSocial(
+    datos: {
+      proveedor: ProveedorSocial;
+      idToken: string;
+      nonce?: string;
+      nombre?: string;
+      aceptoTerminos?: boolean;
+      codigoReferido?: string;
+    },
+    direccionIp?: string,
+  ) {
+    let identidad;
+    try {
+      identidad = await this.verificadorSocial.verificar(datos.proveedor, datos.idToken, datos.nonce);
+    } catch (error) {
+      if (error instanceof TokenSocialInvalidoError) {
+        if (error.noConfigurado) throw new ServiceUnavailableException(error.message);
+        await this.registrarInicioSesion(null, '', 'fallo', { motivo: 'token_social_invalido', proveedor: datos.proveedor });
+        throw new UnauthorizedException(error.message);
+      }
+      throw error;
+    }
+
+    let usuario = await this.usuarios.buscarPorProveedorExterno(datos.proveedor, identidad.proveedorId);
+    let cuentaNueva = false;
+
+    if (!usuario && identidad.correo && identidad.correoVerificado) {
+      const porCorreo = await this.usuarios.buscarPorCorreo(identidad.correo);
+      if (porCorreo) {
+        if (porCorreo.rol !== 'pasajero') {
+          throw new ForbiddenException('Esta cuenta ingresa con correo y contraseña.');
+        }
+        if (!porCorreo.activo) throw new UnauthorizedException('Esta cuenta está desactivada.');
+        await this.usuarios.vincularProveedorExterno(
+          porCorreo.id,
+          datos.proveedor,
+          identidad.proveedorId,
+          !porCorreo.correoVerificado,
+        );
+        await this.registrarInicioSesion(porCorreo, identidad.correo, 'exito', {
+          proveedor: datos.proveedor,
+          cuentaVinculada: true,
+          passwordBorrada: !porCorreo.correoVerificado,
+        });
+        usuario = await this.usuarios.buscarPorId(porCorreo.id);
+      }
+    }
+
+    if (!usuario) {
+      if (!identidad.correo || !identidad.correoVerificado) {
+        throw new BadRequestException(
+          `${datos.proveedor === 'google' ? 'Google' : 'Apple'} no confirmó tu correo, así que no podemos crear la cuenta. Regístrate con tu correo.`,
+        );
+      }
+      this.terminos.validarAceptada(datos.aceptoTerminos === true);
+      const nombre = (datos.nombre?.trim() || identidad.nombre || identidad.correo.split('@')[0]).slice(0, 200);
+      usuario = await this.usuarios.crearPasajeroExterno({
+        correo: identidad.correo,
+        nombreCompleto: nombre,
+        fotoUrl: identidad.fotoUrl,
+        proveedor: datos.proveedor,
+        proveedorId: identidad.proveedorId,
+      });
+      cuentaNueva = true;
+      await this.terminos.registrarAceptacion({ usuarioId: usuario.id, direccionIp });
+      try {
+        await this.usuarios.asegurarCodigoPasajero(usuario.id);
+      } catch (error) {
+        void error; // igual que en registrar(): el código se genera de nuevo al pedir el perfil
+      }
+      if (datos.codigoReferido) {
+        await this.referidos.registrarReferido({
+          codigoReferido: datos.codigoReferido,
+          usuarioReferidoId: usuario.id,
+          cedulaReferido: null,
+        });
+      }
+    }
+
+    if (!usuario || !usuario.activo) throw new UnauthorizedException('Esta cuenta está desactivada.');
+    if (usuario.rol !== 'pasajero') throw new ForbiddenException('Esta cuenta ingresa con correo y contraseña.');
+
+    const tokens = await this.emitirTokenPara(usuario);
+    return { ...tokens, cuentaNueva };
+  }
+
   private async emitirTokenPara(usuario: UsuarioDominio) {
     const accessToken = this.tokens.firmar({
       sub: usuario.id,
@@ -342,6 +448,8 @@ export class AuthService {
       codigoPasajero,
       creadoEn: usuario.creadoEn,
       viajesCompletados,
+      // Las cuentas creadas con Google/Apple no tienen contraseña: la app lo usa para pedir la confirmación correcta al eliminar la cuenta.
+      tienePassword: !!usuario.passwordHash,
       puedeEditarIdentidad: limiteIdentidad.permitido,
       diasRestantesParaEditarIdentidad: limiteIdentidad.permitido
         ? null

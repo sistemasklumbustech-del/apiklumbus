@@ -29,6 +29,7 @@ import { ApiExternaModule } from './presentacion/api-externa/api-externa.module'
 import { GeneradorViajesModule } from './presentacion/generador-viajes/generador-viajes.module';
 import { WalletModule } from './presentacion/wallet/wallet.module';
 import { ReferidosModule } from './presentacion/referidos/referidos.module';
+import { NotificacionesPushModule } from './presentacion/notificaciones-push/notificaciones-push.module';
 import { TerminosModule } from './presentacion/terminos/terminos.module';
 
 /**
@@ -74,6 +75,7 @@ import { TerminosModule } from './presentacion/terminos/terminos.module';
     GeneradorViajesModule,
     WalletModule,
     ReferidosModule,
+    NotificacionesPushModule,
     TerminosModule,
     ReclamosModule,
     CuentasCobroModule,

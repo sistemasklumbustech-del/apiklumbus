@@ -29,7 +29,7 @@ import {
   uniqueIndex,
   pgPolicy,
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import { rolUsuarioEnum } from './enums';
 import { cooperativas } from './tenancy';
 import { appRole, platformAdminRole, filtroCooperativaActualOGlobal } from './rls';
@@ -102,6 +102,10 @@ export const usuarios = pgTable(
   (t) => [
     uniqueIndex('uq_usuarios_correo').on(t.correo),
     uniqueIndex('uq_usuarios_codigo_pasajero').on(t.codigoPasajero),
+    // Una persona de Google/Apple corresponde a una sola cuenta (oct-2026).
+    uniqueIndex('uq_usuarios_proveedor_externo')
+      .on(t.proveedorExterno, t.proveedorExternoId)
+      .where(sql`${t.proveedorExterno} IS NOT NULL`),
     index('idx_usuarios_cooperativa').on(t.cooperativaId),
     index('idx_usuarios_rol').on(t.rol),
     pgPolicy('aislamiento_cooperativa_usuarios', {
