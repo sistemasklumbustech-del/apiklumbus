@@ -157,6 +157,7 @@ export class AuthController {
    * Requiere confirmación real: contraseña actual, o "ELIMINAR" escrito
    * literal si la cuenta no tiene contraseña (login externo).
    */
+  @Throttle({ default: { limit: process.env.NODE_ENV === 'test' ? 10000 : 5, ttl: 60000 } })
   @UseGuards(JwtAuthGuard)
   @Post('eliminar-cuenta')
   async eliminarCuenta(

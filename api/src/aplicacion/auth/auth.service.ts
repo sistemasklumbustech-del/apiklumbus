@@ -448,6 +448,8 @@ export class AuthService {
       codigoPasajero,
       creadoEn: usuario.creadoEn,
       viajesCompletados,
+      // Las cuentas creadas con Google/Apple no tienen contraseña: la app lo usa para pedir la confirmación correcta al eliminar la cuenta.
+      tienePassword: !!usuario.passwordHash,
       puedeEditarIdentidad: limiteIdentidad.permitido,
       diasRestantesParaEditarIdentidad: limiteIdentidad.permitido
         ? null

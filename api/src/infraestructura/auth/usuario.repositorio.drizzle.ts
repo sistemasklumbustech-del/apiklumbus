@@ -403,6 +403,10 @@ export class UsuarioRepositorioDrizzle implements UsuarioRepositorio {
       await tx.execute(sql`
         DELETE FROM tokens_usuario WHERE usuario_id = ${usuarioId}
       `);
+      // Los teléfonos registrados para avisos push dejan de recibir avisos de esta cuenta.
+      await tx.execute(sql`
+        DELETE FROM dispositivos_push WHERE usuario_id = ${usuarioId}
+      `);
       // No se tocan pasajeros_compra.nombre_completo/.documento -- es el
       // registro contable de una venta real de la cooperativa, decisión
       // del director confirmada, no un dato exclusivo de esta cuenta.
